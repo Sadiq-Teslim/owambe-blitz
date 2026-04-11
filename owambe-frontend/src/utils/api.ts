@@ -20,23 +20,29 @@ export const api = {
     questionCount: number;
   }) => request("/games", { method: "POST", body: JSON.stringify(body) }),
 
-  getGame: (id: string, player?: string) =>
-    request(`/games/${id}${player ? `?player=${player}` : ""}`),
+  getGame: (id: string, playerEmail?: string) =>
+    request(`/games/${id}${playerEmail ? `?player=${playerEmail}` : ""}`),
 
-  joinGame: (id: string, address: string) =>
-    request(`/games/${id}/join`, { method: "POST", body: JSON.stringify({ address }) }),
+  joinGame: (id: string, email: string) =>
+    request(`/games/${id}/join`, { method: "POST", body: JSON.stringify({ email }) }),
 
   startGame: (id: string, host: string) =>
     request(`/games/${id}/start`, { method: "POST", body: JSON.stringify({ host }) }),
 
-  submitAnswer: (id: string, address: string, questionIndex: number, answer: string) =>
+  submitAnswer: (id: string, email: string, questionIndex: number, answer: string) =>
     request(`/games/${id}/answer`, {
       method: "POST",
-      body: JSON.stringify({ address, questionIndex, answer }),
+      body: JSON.stringify({ email, questionIndex, answer }),
     }),
 
   nextQuestion: (id: string, host: string) =>
     request(`/games/${id}/next`, { method: "POST", body: JSON.stringify({ host }) }),
 
   getLeaderboard: (id: string) => request(`/games/${id}/leaderboard`),
+
+  claimPrize: (id: string, email: string, walletAddress: string) =>
+    request(`/games/${id}/claim`, {
+      method: "POST",
+      body: JSON.stringify({ email, walletAddress }),
+    }),
 };

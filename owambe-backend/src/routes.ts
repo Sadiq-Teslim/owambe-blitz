@@ -72,11 +72,11 @@ router.get("/games/:id", (req: Request, res: Response) => {
     return;
   }
 
-  const playerAddress = req.query.player as string | undefined;
-  res.json(serializeGameForPlayer(game, playerAddress));
+  const playerEmail = req.query.player as string | undefined;
+  res.json(serializeGameForPlayer(game, playerEmail));
 });
 
-// ── POST /api/games/:id/join — Player joins a game ─────────────────
+// ── POST /api/games/:id/join — Player joins with email ─────────────
 router.post("/games/:id/join", (req: Request, res: Response) => {
   const game = getGameSession(paramId(req));
   if (!game) {
@@ -84,32 +84,32 @@ router.post("/games/:id/join", (req: Request, res: Response) => {
     return;
   }
 
-  const { address } = req.body;
-  if (!address) {
-    res.status(400).json({ error: "address is required" });
+  const { email } = req.body;
+  if (!email) {
+    res.status(400).json({ error: "email is required" });
     return;
   }
 
-  const addr = address.toLowerCase();
+  const normalizedEmail = email.toLowerCase().trim();
   if (game.phase !== "lobby") {
     res.status(400).json({ error: "Game is not in lobby phase" });
     return;
   }
 
-  if (game.players.has(addr)) {
+  if (game.players.has(normalizedEmail)) {
     res.status(400).json({ error: "Already joined" });
     return;
   }
 
   const player: PlayerState = {
-    address: addr,
+    email: normalizedEmail,
     answers: [],
     score: 0,
     totalTime: 0,
     joinedAt: Date.now(),
   };
 
-  game.players.set(addr, player);
+  game.players.set(normalizedEmail, player);
   res.json({ success: true, playerCount: game.players.size });
 });
 
@@ -157,14 +157,14 @@ router.post("/games/:id/answer", (req: Request, res: Response) => {
     return;
   }
 
-  const { address, questionIndex, answer } = req.body;
-  if (!address || questionIndex === undefined || !answer) {
-    res.status(400).json({ error: "address, questionIndex, and answer are required" });
+  const { email, questionIndex, answer } = req.body;
+  if (!email || questionIndex === undefined || !answer) {
+    res.status(400).json({ error: "email, questionIndex, and answer are required" });
     return;
   }
 
-  const addr = address.toLowerCase();
-  const player = game.players.get(addr);
+  const normalizedEmail = email.toLowerCase().trim();
+  const player = game.players.get(normalizedEmail);
   if (!player) {
     res.status(400).json({ error: "Not a player in this game" });
     return;
@@ -175,7 +175,6 @@ router.post("/games/:id/answer", (req: Request, res: Response) => {
     return;
   }
 
-  // Check if already answered this question
   if (player.answers.some((a) => a.questionIndex === questionIndex)) {
     res.status(400).json({ error: "Already answered this question" });
     return;
@@ -189,7 +188,6 @@ router.post("/games/:id/answer", (req: Request, res: Response) => {
     timestamp: timeTaken,
   });
 
-  // Check if correct
   const correct = game.questions[questionIndex].answer === answer;
   if (correct) {
     player.score += 1;
@@ -225,7 +223,6 @@ router.post("/games/:id/next", (req: Request, res: Response) => {
 
   const nextQ = game.currentQuestion + 1;
   if (nextQ >= game.questions.length) {
-    // Game over
     game.phase = "finished";
     game.currentQuestion = game.questions.length;
     game.questionStartedAt = null;
@@ -258,6 +255,39 @@ router.get("/games/:id/leaderboard", (req: Request, res: Response) => {
   });
 });
 
+// ── POST /api/games/:id/claim — Winner submits wallet address ──────
+router.post("/games/:id/claim", (req: Request, res: Response) => {
+  const game = getGameSession(paramId(req));
+  if (!game) {
+    res.status(404).json({ error: "Game not found" });
+    return;
+  }
+
+  const { email, walletAddress } = req.body;
+  if (!email || !walletAddress) {
+    res.status(400).json({ error: "email and walletAddress are required" });
+    return;
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+  const player = game.players.get(normalizedEmail);
+  if (!player) {
+    res.status(400).json({ error: "Not a player in this game" });
+    return;
+  }
+
+  // Check if this player is actually a winner
+  const leaderboard = getLeaderboard(game);
+  const rank = leaderboard.findIndex((e) => e.email === normalizedEmail);
+  if (rank < 0 || rank >= game.sharePercentages.length) {
+    res.status(400).json({ error: "You are not a prize winner" });
+    return;
+  }
+
+  player.walletAddress = walletAddress;
+  res.json({ success: true, rank: rank + 1 });
+});
+
 // ── GET /api/games/:id/questions — Host gets questions with answers ─
 router.get("/games/:id/questions", (req: Request, res: Response) => {
   const game = getGameSession(paramId(req));
@@ -266,12 +296,10 @@ router.get("/games/:id/questions", (req: Request, res: Response) => {
     return;
   }
 
-  // Only return questions with answers if requesting as host
   const { host } = req.query;
   if (host && (host as string).toLowerCase() === game.host) {
     res.json({ questions: game.questions });
   } else {
-    // Players get questions without answers
     const safe = game.questions.map((q) => ({
       question: q.question,
       options: q.options,

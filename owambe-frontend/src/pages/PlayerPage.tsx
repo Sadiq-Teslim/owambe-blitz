@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useWallet } from "../hooks/useWallet";
-import { useContract } from "../hooks/useContract";
 import { WalletButton } from "../components/WalletButton";
 import { TimerRing } from "../components/TimerRing";
 import { Podium } from "../components/Podium";
@@ -23,9 +22,9 @@ export function PlayerPage() {
   const gameIdParam = searchParams.get("game");
 
   const wallet = useWallet();
-  const contract = useContract(wallet.signer);
 
   const [phase, setPhase] = useState<PlayerPhase>("join");
+  const [email, setEmail] = useState("");
   const [gameData, setGameData] = useState<any>(null);
   const [joining, setJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,23 +38,26 @@ export function PlayerPage() {
 
   const [leaderboard, setLeaderboard] = useState<any>(null);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [isWinner, setIsWinner] = useState(false);
+  const [claiming, setClaiming] = useState(false);
+  const [claimed, setClaimed] = useState(false);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Load game info once
   useEffect(() => {
-    if (!gameIdParam || !wallet.address) return;
+    if (!gameIdParam) return;
     if (phase === "join" && !gameData) {
-      api.getGame(gameIdParam, wallet.address).then(setGameData).catch(() => {});
+      api.getGame(gameIdParam).then(setGameData).catch(() => {});
     }
-  }, [gameIdParam, wallet.address, phase, gameData]);
+  }, [gameIdParam, phase, gameData]);
 
   // Active polling
   useEffect(() => {
-    if (!gameIdParam || !wallet.address || phase === "join") return;
+    if (!gameIdParam || !email || phase === "join") return;
     const poll = setInterval(async () => {
       try {
-        const data = await api.getGame(gameIdParam, wallet.address!);
+        const data = await api.getGame(gameIdParam, email);
         setGameData(data);
         if (data.phase === "active" && phase === "waiting") setPhase("playing");
         if (data.phase === "active" && data.currentQuestion) {
@@ -74,11 +76,17 @@ export function PlayerPage() {
           setPhase("results");
           setShowConfetti(true);
           setTimeout(() => setShowConfetti(false), 5000);
+
+          // Check if this player is a winner
+          const myRank = lb.leaderboard.findIndex((e: any) => e.email.toLowerCase() === email.toLowerCase());
+          if (myRank >= 0 && myRank < lb.sharePercentages.length) {
+            setIsWinner(true);
+          }
         }
       } catch { /* ignore */ }
     }, 1500);
     return () => clearInterval(poll);
-  }, [gameIdParam, wallet.address, phase, lastQuestionIndex]);
+  }, [gameIdParam, email, phase, lastQuestionIndex]);
 
   // Countdown
   useEffect(() => {
@@ -92,29 +100,42 @@ export function PlayerPage() {
   }, [phase, currentQuestion?.index]);
 
   const handleJoin = async () => {
-    if (!gameIdParam || !wallet.address) return;
+    if (!gameIdParam || !email.trim()) return;
     setJoining(true);
     setError(null);
     try {
-      await contract.joinGameOnChain(Number(gameIdParam));
-      await api.joinGame(gameIdParam, wallet.address);
+      await api.joinGame(gameIdParam, email.trim());
       setPhase("waiting");
     } catch (err: any) {
-      setError(err.reason || err.message || "Failed to join");
+      setError(err.message || "Failed to join");
     } finally {
       setJoining(false);
     }
   };
 
   const handleAnswer = async (answer: string) => {
-    if (selectedAnswer || !gameIdParam || !wallet.address || !currentQuestion) return;
+    if (selectedAnswer || !gameIdParam || !email || !currentQuestion) return;
     setSelectedAnswer(answer);
     try {
-      const result = await api.submitAnswer(gameIdParam, wallet.address, currentQuestion.index, answer);
+      const result = await api.submitAnswer(gameIdParam, email, currentQuestion.index, answer);
       setAnswerResult({ correct: result.correct, correctAnswer: result.correctAnswer });
       setScore(result.score);
     } catch (err: any) {
       setError(err.message);
+    }
+  };
+
+  const handleClaimPrize = async () => {
+    if (!gameIdParam || !email || !wallet.address) return;
+    setClaiming(true);
+    setError(null);
+    try {
+      await api.claimPrize(gameIdParam, email, wallet.address);
+      setClaimed(true);
+    } catch (err: any) {
+      setError(err.message || "Failed to claim");
+    } finally {
+      setClaiming(false);
     }
   };
 
@@ -140,27 +161,20 @@ export function PlayerPage() {
           </span>
           <span className="text-cream-dim/30 text-xs ml-2 font-mono">#{gameIdParam}</span>
         </div>
-        <WalletButton
-          address={wallet.address}
-          connecting={wallet.connecting}
-          onConnect={wallet.connect}
-          onDisconnect={wallet.disconnect}
-          error={wallet.error}
-        />
+        {/* Only show wallet button in results phase for winners */}
+        {phase === "results" && isWinner && !claimed && (
+          <WalletButton
+            address={wallet.address}
+            connecting={wallet.connecting}
+            onConnect={wallet.connect}
+            onDisconnect={wallet.disconnect}
+            error={wallet.error}
+          />
+        )}
       </header>
 
-      {!wallet.address ? (
-        <div className="flex flex-col items-center justify-center min-h-[60vh] animate-fade-up">
-          <div className="stone-card arena-border p-10 text-center max-w-md">
-            <h2 className="font-arena text-2xl text-gold mb-3 tracking-wider">ENTER THE ARENA</h2>
-            <p className="text-cream-dim/50 text-sm mb-6">Connect your wallet to join the battle. Entry is free.</p>
-            <button onClick={wallet.connect} disabled={wallet.connecting} className="btn-gold w-full">
-              {wallet.connecting ? "CONNECTING..." : "CONNECT WALLET"}
-            </button>
-          </div>
-        </div>
-      ) : phase === "join" ? (
-        /* ── JOIN PHASE ── */
+      {phase === "join" ? (
+        /* ── JOIN PHASE — email only ── */
         <div className="animate-fade-up space-y-6">
           <div className="text-center mb-6">
             <p className="text-cream-dim/30 text-xs font-arena tracking-[0.3em] mb-2">A CHALLENGE AWAITS</p>
@@ -191,9 +205,22 @@ export function PlayerPage() {
             </div>
           )}
 
+          <div className="stone-card arena-border p-6">
+            <label className="block text-cream-dim/50 text-xs font-arena tracking-wider mb-2">YOUR EMAIL</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="warrior@example.com"
+              className="w-full bg-arena-stone border border-arena-border rounded-lg px-4 py-3 text-cream placeholder-cream/20 focus:outline-none focus:border-gold/50 transition-colors"
+              onKeyDown={(e) => { if (e.key === "Enter") handleJoin(); }}
+            />
+            <p className="text-cream-dim/30 text-xs mt-2">No wallet needed to play. Just your email.</p>
+          </div>
+
           {error && <p className="text-arena-red text-sm text-center">{error}</p>}
 
-          <button onClick={handleJoin} disabled={joining || !gameData} className="btn-gold w-full text-lg py-5">
+          <button onClick={handleJoin} disabled={joining || !gameData || !email.trim()} className="btn-gold w-full text-lg py-5">
             {joining ? "ENTERING..." : "ENTER THE ARENA"}
           </button>
         </div>
@@ -299,7 +326,7 @@ export function PlayerPage() {
                   const share = leaderboard.sharePercentages[i];
                   const pool = parseFloat(leaderboard.prizePool);
                   return {
-                    address: entry.address,
+                    address: entry.email,
                     score: entry.score,
                     rank: i + 1,
                     winnings: share ? ((pool * share) / 100).toFixed(4) : null,
@@ -307,11 +334,29 @@ export function PlayerPage() {
                 })}
               />
 
-              {/* Am I a winner? */}
-              {wallet.address && leaderboard.leaderboard.findIndex((e: any) => e.address.toLowerCase() === wallet.address!.toLowerCase()) < leaderboard.sharePercentages.length && (
+              {/* Winner claim section */}
+              {isWinner && !claimed && (
                 <div className="stone-card arena-border p-6 text-center bg-gold/5">
-                  <p className="font-arena text-gold text-lg tracking-wider">YOU ARE A CHAMPION</p>
-                  <p className="text-cream-dim/60 text-sm mt-1">Your winnings have been sent to your wallet</p>
+                  <p className="font-arena text-gold text-lg tracking-wider mb-2">YOU ARE A CHAMPION</p>
+                  <p className="text-cream-dim/60 text-sm mb-4">Connect your wallet to receive your winnings</p>
+
+                  {!wallet.address ? (
+                    <button onClick={wallet.connect} disabled={wallet.connecting} className="btn-gold w-full">
+                      {wallet.connecting ? "CONNECTING..." : "CONNECT WALLET TO CLAIM"}
+                    </button>
+                  ) : (
+                    <button onClick={handleClaimPrize} disabled={claiming} className="btn-gold w-full">
+                      {claiming ? "CLAIMING..." : "CLAIM PRIZE"}
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {claimed && (
+                <div className="stone-card arena-border p-6 text-center bg-arena-green/5">
+                  <p className="font-arena text-arena-green text-lg tracking-wider">WALLET SUBMITTED</p>
+                  <p className="text-cream-dim/60 text-sm mt-1">The host will send your winnings shortly</p>
+                  <p className="text-cream-dim/30 text-xs font-mono mt-2">{wallet.address}</p>
                 </div>
               )}
 
@@ -319,13 +364,13 @@ export function PlayerPage() {
               {leaderboard.leaderboard.length > 3 && (
                 <div className="stone-card p-4 space-y-2">
                   {leaderboard.leaderboard.slice(3).map((entry: any, i: number) => {
-                    const isMe = wallet.address?.toLowerCase() === entry.address.toLowerCase();
+                    const isMe = email.toLowerCase() === entry.email.toLowerCase();
                     return (
-                      <div key={entry.address} className={`flex items-center justify-between py-2 px-3 rounded ${isMe ? "bg-gold/5 border border-gold/20" : "bg-arena-stone/30"}`}>
+                      <div key={entry.email} className={`flex items-center justify-between py-2 px-3 rounded ${isMe ? "bg-gold/5 border border-gold/20" : "bg-arena-stone/30"}`}>
                         <div className="flex items-center gap-3">
                           <span className="text-cream-dim/30 font-arena text-xs">#{i + 4}</span>
-                          <span className="font-mono text-xs text-cream-dim/60">
-                            {entry.address.slice(0, 6)}...{entry.address.slice(-4)}
+                          <span className="text-xs text-cream-dim/60">
+                            {entry.email}
                             {isMe && <span className="text-gold ml-1">(You)</span>}
                           </span>
                         </div>

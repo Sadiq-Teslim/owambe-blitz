@@ -14,7 +14,8 @@ type GamePhase = "setup" | "lobby" | "playing" | "results";
 
 interface LeaderboardEntry {
   rank: number;
-  address: string;
+  email: string;
+  walletAddress?: string | null;
   score: number;
   totalTime: number;
 }
@@ -125,7 +126,6 @@ export function HostPage() {
     if (!gameId) return;
     setError(null);
     try {
-      await contract.startGame(Number(gameId));
       await api.startGame(gameId, wallet.address!);
       setPhase("playing");
       setCurrentQ(0);
@@ -159,12 +159,29 @@ export function HostPage() {
     setShowConfetti(true);
     setTimeout(() => setShowConfetti(false), 5000);
 
+    // Payout happens after winners submit wallet addresses via claim
+    // Host triggers payout manually once winners have claimed
+  };
+
+  const handlePayout = async () => {
+    if (!gameId || !leaderboard.length) return;
     setPaying(true);
+    setError(null);
     try {
-      const sortedPlayers = finalLb!.map((e: LeaderboardEntry) => e.address);
-      const sortedScores = finalLb!.map((e: LeaderboardEntry) => e.score);
-      const checksummed = sortedPlayers.map((a: string) => ethers.getAddress(a));
-      const result = await contract.recordScores(Number(gameId), checksummed, sortedScores);
+      // Get winners who have submitted wallet addresses
+      const lbData = await api.getLeaderboard(gameId);
+      const winners = lbData.leaderboard
+        .slice(0, lbData.sharePercentages.length)
+        .filter((e: any) => e.walletAddress)
+        .map((e: any) => ethers.getAddress(e.walletAddress));
+
+      if (winners.length === 0) {
+        setError("No winners have submitted wallet addresses yet");
+        setPaying(false);
+        return;
+      }
+
+      const result = await contract.payoutWinners(Number(gameId), winners);
       setPayoutTxHash(result.txHash);
       setPayouts(result.payouts);
     } catch (err: any) {
@@ -414,9 +431,9 @@ export function HostPage() {
             ) : (
               <div className="space-y-2">
                 {playerList.map((p: any, i: number) => (
-                  <div key={p.address} className="flex items-center gap-3 bg-arena-stone/50 rounded-lg px-4 py-2.5 animate-fade-up" style={{ animationDelay: `${i * 0.1}s` }}>
+                  <div key={p.email} className="flex items-center gap-3 bg-arena-stone/50 rounded-lg px-4 py-2.5 animate-fade-up" style={{ animationDelay: `${i * 0.1}s` }}>
                     <span className="text-gold/60 font-arena text-xs w-6">{i + 1}.</span>
-                    <span className="font-mono text-sm text-cream-dim">{p.address.slice(0, 6)}...{p.address.slice(-4)}</span>
+                    <span className="text-sm text-cream-dim">{p.email}</span>
                   </div>
                 ))}
               </div>
@@ -490,62 +507,67 @@ export function HostPage() {
             <p className="text-cream-dim/50 text-sm">Champions have been decided</p>
           </div>
 
-          {paying ? (
-            <div className="stone-card arena-border p-10 text-center">
+          {/* Podium */}
+          <Podium
+            entries={leaderboard.slice(0, 3).map((entry, i) => ({
+              address: entry.email,
+              score: entry.score,
+              rank: i + 1,
+              winnings: payouts.find((p) => p.rank === i + 1)
+                ? ethers.formatEther(payouts.find((p) => p.rank === i + 1)!.amount)
+                : null,
+            }))}
+          />
+
+          {/* Full leaderboard */}
+          {leaderboard.length > 3 && (
+            <div className="stone-card p-4 space-y-2">
+              {leaderboard.slice(3).map((entry, i) => (
+                <div key={entry.email} className="flex items-center justify-between py-2 px-3 rounded bg-arena-stone/30">
+                  <div className="flex items-center gap-3">
+                    <span className="text-cream-dim/30 font-arena text-xs">#{i + 4}</span>
+                    <span className="text-xs text-cream-dim/60">{entry.email}</span>
+                  </div>
+                  <span className="text-cream-dim/40 text-sm">{entry.score} pts</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Payout button — host triggers once winners claim wallets */}
+          {!payoutTxHash && (
+            <button onClick={handlePayout} disabled={paying} className="btn-gold w-full py-4">
+              {paying ? "PAYING ON MONAD..." : "PAY WINNERS ON-CHAIN"}
+            </button>
+          )}
+
+          {paying && (
+            <div className="stone-card arena-border p-6 text-center">
               <div className="animate-spin w-10 h-10 border-3 border-gold border-t-transparent rounded-full mx-auto mb-4" />
               <p className="text-cream-dim/60 text-sm font-arena tracking-wider">SETTLING ON MONAD...</p>
             </div>
-          ) : (
-            <>
-              {/* Podium */}
-              <Podium
-                entries={leaderboard.slice(0, 3).map((entry, i) => ({
-                  address: entry.address,
-                  score: entry.score,
-                  rank: i + 1,
-                  winnings: payouts.find((p) => p.player.toLowerCase() === entry.address.toLowerCase())
-                    ? ethers.formatEther(payouts.find((p) => p.player.toLowerCase() === entry.address.toLowerCase())!.amount)
-                    : null,
-                }))}
-              />
-
-              {/* Full leaderboard */}
-              {leaderboard.length > 3 && (
-                <div className="stone-card p-4 space-y-2">
-                  {leaderboard.slice(3).map((entry, i) => (
-                    <div key={entry.address} className="flex items-center justify-between py-2 px-3 rounded bg-arena-stone/30">
-                      <div className="flex items-center gap-3">
-                        <span className="text-cream-dim/30 font-arena text-xs">#{i + 4}</span>
-                        <span className="font-mono text-xs text-cream-dim/60">{entry.address.slice(0, 6)}...{entry.address.slice(-4)}</span>
-                      </div>
-                      <span className="text-cream-dim/40 text-sm">{entry.score} pts</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Tx Hash */}
-              {payoutTxHash && (
-                <div className="stone-card arena-border p-6 text-center">
-                  <p className="text-arena-green font-arena text-sm tracking-wider mb-2">PAID ON MONAD — INSTANTLY</p>
-                  <a
-                    href={`https://testnet.monadexplorer.com/tx/${payoutTxHash}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-cream-dim/40 hover:text-gold text-xs font-mono break-all underline transition-colors"
-                  >
-                    {payoutTxHash}
-                  </a>
-                </div>
-              )}
-
-              {error && <p className="text-arena-red text-sm text-center">{error}</p>}
-
-              <button onClick={() => { setPhase("setup"); setGameId(null); setQuestions([]); setLeaderboard([]); setPayouts([]); setPayoutTxHash(null); }} className="btn-gold w-full py-4">
-                NEW ARENA
-              </button>
-            </>
           )}
+
+          {/* Tx Hash */}
+          {payoutTxHash && (
+            <div className="stone-card arena-border p-6 text-center">
+              <p className="text-arena-green font-arena text-sm tracking-wider mb-2">PAID ON MONAD — INSTANTLY</p>
+              <a
+                href={`https://testnet.monadexplorer.com/tx/${payoutTxHash}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-cream-dim/40 hover:text-gold text-xs font-mono break-all underline transition-colors"
+              >
+                {payoutTxHash}
+              </a>
+            </div>
+          )}
+
+          {error && <p className="text-arena-red text-sm text-center">{error}</p>}
+
+          <button onClick={() => { setPhase("setup"); setGameId(null); setQuestions([]); setLeaderboard([]); setPayouts([]); setPayoutTxHash(null); }} className="btn-gold w-full py-4">
+            NEW ARENA
+          </button>
         </div>
       )}
     </div>

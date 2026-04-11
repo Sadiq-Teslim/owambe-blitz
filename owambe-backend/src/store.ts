@@ -27,7 +27,7 @@ export function serializeGame(game: GameSession) {
     currentQuestion: game.currentQuestion,
     playerCount: game.players.size,
     players: Array.from(game.players.values()).map((p) => ({
-      address: p.address,
+      email: p.email,
       score: p.score,
       hasAnswered: p.answers.some((a) => a.questionIndex === game.currentQuestion),
     })),
@@ -35,7 +35,7 @@ export function serializeGame(game: GameSession) {
   };
 }
 
-export function serializeGameForPlayer(game: GameSession, playerAddress?: string) {
+export function serializeGameForPlayer(game: GameSession, playerEmail?: string) {
   const base = serializeGame(game);
 
   // During active game, send current question WITHOUT the answer
@@ -53,8 +53,8 @@ export function serializeGameForPlayer(game: GameSession, playerAddress?: string
 
   // Player's own state
   let myState = null;
-  if (playerAddress) {
-    const ps = game.players.get(playerAddress.toLowerCase());
+  if (playerEmail) {
+    const ps = game.players.get(playerEmail.toLowerCase());
     if (ps) {
       myState = {
         score: ps.score,
@@ -75,7 +75,8 @@ export function getLeaderboard(game: GameSession) {
 
   return players.map((p, i) => ({
     rank: i + 1,
-    address: p.address,
+    email: p.email,
+    walletAddress: p.walletAddress || null,
     score: p.score,
     totalTime: p.totalTime,
   }));

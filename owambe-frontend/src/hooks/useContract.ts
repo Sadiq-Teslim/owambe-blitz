@@ -17,7 +17,6 @@ export function useContract(signer: JsonRpcSigner | null) {
       const tx = await contract.createGame(sharePercentages, { value: prizePoolWei });
       const receipt = await tx.wait();
 
-      // Extract gameId from GameCreated event
       const event = receipt.logs.find((log: any) => {
         try {
           const parsed = contract.interface.parseLog({ topics: log.topics as string[], data: log.data });
@@ -38,35 +37,12 @@ export function useContract(signer: JsonRpcSigner | null) {
     [getContract]
   );
 
-  const joinGameOnChain = useCallback(
-    async (gameId: number) => {
+  const payoutWinners = useCallback(
+    async (gameId: number, winners: string[]) => {
       const contract = getContract();
       if (!contract) throw new Error("Contract not available");
 
-      const tx = await contract.joinGame(gameId);
-      const receipt = await tx.wait();
-      return receipt.hash;
-    },
-    [getContract]
-  );
-
-  const startGame = useCallback(
-    async (gameId: number) => {
-      const contract = getContract();
-      if (!contract) throw new Error("Contract not available");
-
-      const tx = await contract.startGame(gameId);
-      await tx.wait();
-    },
-    [getContract]
-  );
-
-  const recordScores = useCallback(
-    async (gameId: number, players: string[], scores: number[]) => {
-      const contract = getContract();
-      if (!contract) throw new Error("Contract not available");
-
-      const tx = await contract.recordScores(gameId, players, scores);
+      const tx = await contract.payoutWinners(gameId, winners);
       const receipt = await tx.wait();
 
       const payouts: { player: string; amount: bigint; rank: number }[] = [];
@@ -90,25 +66,5 @@ export function useContract(signer: JsonRpcSigner | null) {
     [getContract]
   );
 
-  const getGameInfo = useCallback(
-    async (gameId: number) => {
-      const contract = getContract();
-      if (!contract) throw new Error("Contract not available");
-
-      const [host, prizePool, state, playerCount, sharePercentages] = await contract.getGame(gameId);
-      const players = await contract.getPlayers(gameId);
-
-      return {
-        host: host as string,
-        prizePool: prizePool as bigint,
-        state: Number(state),
-        playerCount: Number(playerCount),
-        sharePercentages: (sharePercentages as bigint[]).map(Number),
-        players: players as string[],
-      };
-    },
-    [getContract]
-  );
-
-  return { createGame, joinGameOnChain, startGame, recordScores, getGameInfo };
+  return { createGame, payoutWinners };
 }

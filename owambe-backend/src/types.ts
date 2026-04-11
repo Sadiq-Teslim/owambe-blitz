@@ -11,7 +11,8 @@ export interface PlayerAnswer {
 }
 
 export interface PlayerState {
-  address: string;
+  email: string;
+  walletAddress?: string; // only set when winner claims
   answers: PlayerAnswer[];
   score: number;
   totalTime: number; // total ms taken across all answers
