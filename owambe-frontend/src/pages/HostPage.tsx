@@ -140,17 +140,18 @@ export function HostPage() {
     return () => clearInterval(poll);
   }, [gameId, phase]);
 
-  // In results phase, poll for winner wallet claims and auto-pay
+  // In results phase, poll for winner wallet claims and auto-pay immediately
   useEffect(() => {
     if (phase !== "results" || !gameId || payoutTriggered.current || payoutTxHash) return;
     const poll = setInterval(async () => {
       try {
         const data = await api.getWinners(gameId);
-        if (data.allClaimed && !payoutTriggered.current) {
+        // Pay as soon as ANY winner has submitted a wallet
+        const claimedWinners = data.winners.filter((w: any) => w.walletAddress);
+        if (claimedWinners.length > 0 && !payoutTriggered.current) {
           payoutTriggered.current = true;
           clearInterval(poll);
-          // All winners claimed — auto trigger payout
-          await triggerPayout(data.winners);
+          await triggerPayout(claimedWinners);
         }
       } catch { /* ignore */ }
     }, 2000);
@@ -193,6 +194,8 @@ export function HostPage() {
       const result = await contract.payoutWinners(Number(gameId), wallets);
       setPayoutTxHash(result.txHash);
       setPayouts(result.payouts);
+      // Save tx hash to backend so players can detect payout
+      try { await api.savePayoutTx(gameId!, result.txHash); } catch { /* non-critical */ }
     } catch (err: any) {
       setError(err.reason || err.message || "Payout failed");
       payoutTriggered.current = false; // Allow retry

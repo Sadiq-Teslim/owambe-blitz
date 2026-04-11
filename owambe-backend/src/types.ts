@@ -33,4 +33,5 @@ export interface GameSession {
   currentQuestion: number;
   questionStartedAt: number | null;   // timestamp when current question was shown
   createdAt: number;
+  payoutTxHash: string | null;        // set after host triggers on-chain payout
 }

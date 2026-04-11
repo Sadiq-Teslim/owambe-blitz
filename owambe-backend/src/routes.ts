@@ -85,6 +85,7 @@ router.post("/games", async (req: Request, res: Response) => {
       currentQuestion: 0,
       questionStartedAt: null,
       createdAt: Date.now(),
+      payoutTxHash: null,
     };
 
     createGameSession(session);
@@ -330,7 +331,25 @@ router.get("/games/:id/winners", (req: Request, res: Response) => {
 
   const allClaimed = winners.every((w) => w.walletAddress !== null);
 
-  res.json({ winners, allClaimed, sharePercentages: game.sharePercentages, prizePool: game.prizePool });
+  res.json({ winners, allClaimed, sharePercentages: game.sharePercentages, prizePool: game.prizePool, payoutTxHash: game.payoutTxHash });
+});
+
+// ── POST /api/games/:id/payout-tx — Host saves payout tx hash ──────
+router.post("/games/:id/payout-tx", (req: Request, res: Response) => {
+  const game = getGameSession(paramId(req));
+  if (!game) {
+    res.status(404).json({ error: "Game not found" });
+    return;
+  }
+
+  const { txHash } = req.body;
+  if (!txHash) {
+    res.status(400).json({ error: "txHash is required" });
+    return;
+  }
+
+  game.payoutTxHash = txHash;
+  res.json({ success: true });
 });
 
 // ── GET /api/games/:id/questions — Host gets questions with answers ─

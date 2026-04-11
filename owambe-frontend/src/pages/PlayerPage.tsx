@@ -23,6 +23,8 @@ interface PlayerSavedState {
   score: number;
   isWinner: boolean;
   claimed: boolean;
+  leaderboard: Record<string, unknown> | null;
+  totalQuestions: number | null;
 }
 
 function playerStorageKey(gameId: string) { return `owambe_player_${gameId}`; }
@@ -59,20 +61,22 @@ export function PlayerPage() {
   const [answerResult, setAnswerResult] = useState<{ correct: boolean; correctAnswer: string } | null>(null);
   const [score, setScore] = useState(saved.score || 0);
   const [timer, setTimer] = useState(10);
+  const [totalQuestions, setTotalQuestions] = useState<number | null>(saved.totalQuestions || null);
 
-  const [leaderboard, setLeaderboard] = useState<any>(null);
+  const [leaderboard, setLeaderboard] = useState<any>(saved.leaderboard || null);
   const [showConfetti, setShowConfetti] = useState(false);
   const [isWinner, setIsWinner] = useState(saved.isWinner || false);
   const [claiming, setClaiming] = useState(false);
   const [claimed, setClaimed] = useState(saved.claimed || false);
+  const [payoutReceived, setPayoutReceived] = useState(false);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Persist player state on key changes
   useEffect(() => {
     if (!gameIdParam || phase === "join") return;
-    savePlayerState(gameIdParam, { phase, email, score, isWinner, claimed });
-  }, [gameIdParam, phase, email, score, isWinner, claimed]);
+    savePlayerState(gameIdParam, { phase, email, score, isWinner, claimed, leaderboard, totalQuestions });
+  }, [gameIdParam, phase, email, score, isWinner, claimed, leaderboard, totalQuestions]);
 
   // Load game info once
   useEffect(() => {
@@ -82,7 +86,7 @@ export function PlayerPage() {
     }
   }, [gameIdParam, phase, gameData]);
 
-  // Active polling
+  // Active polling — works for waiting, playing, AND results (to detect payout)
   useEffect(() => {
     if (!gameIdParam || !email || phase === "join") return;
     const poll = setInterval(async () => {
@@ -92,6 +96,7 @@ export function PlayerPage() {
         if (data.phase === "active" && phase === "waiting") setPhase("playing");
         if (data.phase === "active" && data.currentQuestion) {
           const q = data.currentQuestion as CurrentQuestion;
+          setTotalQuestions(q.totalQuestions);
           if (q.index !== lastQuestionIndex) {
             setCurrentQuestion(q);
             setLastQuestionIndex(q.index);
@@ -107,7 +112,6 @@ export function PlayerPage() {
           setShowConfetti(true);
           setTimeout(() => setShowConfetti(false), 5000);
 
-          // Check if this player is a winner
           const myRank = lb.leaderboard.findIndex((e: any) => e.email.toLowerCase() === email.toLowerCase());
           if (myRank >= 0 && myRank < lb.sharePercentages.length) {
             setIsWinner(true);
@@ -117,6 +121,22 @@ export function PlayerPage() {
     }, 1500);
     return () => clearInterval(poll);
   }, [gameIdParam, email, phase, lastQuestionIndex]);
+
+  // After claiming, poll winners endpoint to detect when payout tx lands
+  useEffect(() => {
+    if (!gameIdParam || !claimed || payoutReceived) return;
+    const poll = setInterval(async () => {
+      try {
+        const data = await api.getWinners(gameIdParam);
+        // If the backend has marked payout as done (winners have wallets + payout triggered)
+        if (data.payoutTxHash) {
+          setPayoutReceived(true);
+          clearInterval(poll);
+        }
+      } catch { /* ignore */ }
+    }, 2000);
+    return () => clearInterval(poll);
+  }, [gameIdParam, claimed, payoutReceived]);
 
   // Countdown
   useEffect(() => {
@@ -191,7 +211,6 @@ export function PlayerPage() {
           </span>
           <span className="text-cream-dim/30 text-xs ml-2 font-mono">#{gameIdParam}</span>
         </div>
-        {/* Only show wallet button in results phase for winners */}
         {phase === "results" && isWinner && !claimed && (
           <WalletButton
             address={wallet.address}
@@ -271,7 +290,7 @@ export function PlayerPage() {
               <p className="text-cream-dim/30 text-xs font-arena tracking-[0.3em]">ROUND</p>
               <h2 className="font-arena text-3xl text-gold">
                 {(currentQuestion?.index ?? 0) + 1}
-                <span className="text-cream-dim/20 text-lg ml-1">/ {currentQuestion?.totalQuestions ?? "?"}</span>
+                <span className="text-cream-dim/20 text-lg ml-1">/ {currentQuestion?.totalQuestions ?? totalQuestions ?? "?"}</span>
               </h2>
               <p className="text-gold/40 text-xs mt-1">Score: {score}</p>
             </div>
@@ -345,7 +364,7 @@ export function PlayerPage() {
           <div className="text-center">
             <h2 className="font-arena text-3xl text-gold tracking-wider mb-1">THE ARENA HAS SPOKEN</h2>
             <p className="text-cream-dim/50 text-sm">
-              Your score: <span className="text-gold font-bold">{score}</span> / {currentQuestion?.totalQuestions ?? "?"}
+              Your score: <span className="text-gold font-bold">{score}</span> / {totalQuestions ?? currentQuestion?.totalQuestions ?? "?"}
             </p>
           </div>
 
@@ -382,10 +401,19 @@ export function PlayerPage() {
                 </div>
               )}
 
-              {claimed && (
+              {claimed && !payoutReceived && (
+                <div className="stone-card arena-border p-6 text-center bg-gold/5">
+                  <div className="w-8 h-8 border-3 border-gold/40 border-t-gold rounded-full animate-spin mx-auto mb-4" />
+                  <p className="font-arena text-gold text-lg tracking-wider">YOUR WINNINGS ARE ON THE WAY</p>
+                  <p className="text-cream-dim/60 text-sm mt-1">Sending to your wallet now...</p>
+                  <p className="text-cream-dim/30 text-xs font-mono mt-2">{wallet.address}</p>
+                </div>
+              )}
+
+              {claimed && payoutReceived && (
                 <div className="stone-card arena-border p-6 text-center bg-arena-green/5">
-                  <p className="font-arena text-arena-green text-lg tracking-wider">WALLET SUBMITTED</p>
-                  <p className="text-cream-dim/60 text-sm mt-1">The host will send your winnings shortly</p>
+                  <p className="font-arena text-arena-green text-lg tracking-wider">WINNINGS SENT</p>
+                  <p className="text-cream-dim/60 text-sm mt-1">Check your wallet — your MON has arrived</p>
                   <p className="text-cream-dim/30 text-xs font-mono mt-2">{wallet.address}</p>
                 </div>
               )}

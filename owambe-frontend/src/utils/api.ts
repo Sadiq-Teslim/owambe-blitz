@@ -48,4 +48,10 @@ export const api = {
     }),
 
   getWinners: (id: string) => request(`/games/${id}/winners`),
+
+  savePayoutTx: (id: string, txHash: string) =>
+    request(`/games/${id}/payout-tx`, {
+      method: "POST",
+      body: JSON.stringify({ txHash }),
+    }),
 };
