@@ -4,202 +4,143 @@ import { ethers } from "ethers";
 import { useWallet } from "../hooks/useWallet";
 import { useContract } from "../hooks/useContract";
 import { WalletButton } from "../components/WalletButton";
-import type { TriviaQuestion } from "../utils/groq";
+import { TimerRing } from "../components/TimerRing";
+import { Podium } from "../components/Podium";
+import { Confetti } from "../components/Confetti";
+import { api } from "../utils/api";
 
 type PlayerPhase = "join" | "waiting" | "playing" | "results";
+
+interface CurrentQuestion {
+  index: number;
+  question: string;
+  options: { A: string; B: string; C: string; D: string };
+  totalQuestions: number;
+  startedAt: number | null;
+}
 
 export function PlayerPage() {
   const [searchParams] = useSearchParams();
   const gameIdParam = searchParams.get("game");
-  const gameId = gameIdParam ? Number(gameIdParam) : null;
 
   const wallet = useWallet();
   const contract = useContract(wallet.signer);
 
   const [phase, setPhase] = useState<PlayerPhase>("join");
-  const [gameInfo, setGameInfo] = useState<{
-    host: string;
-    prizePool: bigint;
-    entryFee: bigint;
-    state: number;
-    playerCount: number;
-  } | null>(null);
-  const [joined, setJoined] = useState(false);
+  const [gameData, setGameData] = useState<any>(null);
   const [joining, setJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Game
-  const [questions, setQuestions] = useState<TriviaQuestion[]>([]);
-  const [currentQ, setCurrentQ] = useState(0);
-  const [timer, setTimer] = useState(15);
+  const [currentQuestion, setCurrentQuestion] = useState<CurrentQuestion | null>(null);
+  const [lastQuestionIndex, setLastQuestionIndex] = useState(-1);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
-  const [myAnswers, setMyAnswers] = useState<Record<number, { answer: string; time: number }>>({});
+  const [answerResult, setAnswerResult] = useState<{ correct: boolean; correctAnswer: string } | null>(null);
   const [score, setScore] = useState(0);
+  const [timer, setTimer] = useState(15);
 
-  // Results
-  const [results, setResults] = useState<{ sortedPlayers: string[]; scores: Record<string, number> } | null>(null);
-  const [payoutInfo, setPayoutInfo] = useState<{ txHash: string; payouts: { player: string; amount: string; rank: number }[] } | null>(null);
+  const [leaderboard, setLeaderboard] = useState<any>(null);
+  const [showConfetti, setShowConfetti] = useState(false);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const questionStartTime = useRef<number>(Date.now());
 
-  // Load game info
+  // Load game info once
   useEffect(() => {
-    if (!gameId || !wallet.signer) return;
+    if (!gameIdParam || !wallet.address) return;
+    if (phase === "join" && !gameData) {
+      api.getGame(gameIdParam, wallet.address).then(setGameData).catch(() => {});
+    }
+  }, [gameIdParam, wallet.address, phase, gameData]);
 
-    const load = async () => {
+  // Active polling
+  useEffect(() => {
+    if (!gameIdParam || !wallet.address || phase === "join") return;
+    const poll = setInterval(async () => {
       try {
-        const info = await contract.getGameInfo(gameId);
-        setGameInfo(info);
-
-        // Check if already joined
-        const address = await wallet.signer!.getAddress();
-        const alreadyJoined = info.players.some(
-          (p: string) => p.toLowerCase() === address.toLowerCase()
-        );
-        if (alreadyJoined) {
-          setJoined(true);
-          if (info.state === 0) setPhase("waiting");
-          else if (info.state === 1) setPhase("playing");
-          else if (info.state === 2) setPhase("results");
-        }
-      } catch (err: any) {
-        setError("Could not load game info");
-      }
-    };
-
-    load();
-  }, [gameId, wallet.signer, contract]);
-
-  // Poll for game phase changes (waiting → playing → results)
-  useEffect(() => {
-    if (!gameId || !joined) return;
-
-    const poll = setInterval(() => {
-      // Check localStorage for phase changes from host
-      const storedPhase = localStorage.getItem(`owambe_game_phase_${gameId}`);
-      if (storedPhase === "playing" && phase === "waiting") {
-        const qs = localStorage.getItem(`owambe_questions_${gameId}`);
-        if (qs) {
-          setQuestions(JSON.parse(qs));
-          setPhase("playing");
-          setCurrentQ(0);
-          questionStartTime.current = Date.now();
-        }
-      }
-
-      if (storedPhase === "playing") {
-        const cq = localStorage.getItem(`owambe_current_q_${gameId}`);
-        if (cq !== null) {
-          const newQ = Number(cq);
-          if (newQ !== currentQ) {
-            setCurrentQ(newQ);
+        const data = await api.getGame(gameIdParam, wallet.address!);
+        setGameData(data);
+        if (data.phase === "active" && phase === "waiting") setPhase("playing");
+        if (data.phase === "active" && data.currentQuestion) {
+          const q = data.currentQuestion as CurrentQuestion;
+          if (q.index !== lastQuestionIndex) {
+            setCurrentQuestion(q);
+            setLastQuestionIndex(q.index);
             setSelectedAnswer(null);
+            setAnswerResult(null);
             setTimer(15);
-            questionStartTime.current = Date.now();
           }
         }
-      }
-
-      if (storedPhase === "results" && phase !== "results") {
-        const res = localStorage.getItem(`owambe_results_${gameId}`);
-        if (res) setResults(JSON.parse(res));
-        const pay = localStorage.getItem(`owambe_payout_${gameId}`);
-        if (pay) setPayoutInfo(JSON.parse(pay));
-        setPhase("results");
-      }
-    }, 1000);
-
+        if (data.phase === "finished" && phase !== "results") {
+          const lb = await api.getLeaderboard(gameIdParam);
+          setLeaderboard(lb);
+          setPhase("results");
+          setShowConfetti(true);
+          setTimeout(() => setShowConfetti(false), 5000);
+        }
+      } catch { /* ignore */ }
+    }, 1500);
     return () => clearInterval(poll);
-  }, [gameId, joined, phase, currentQ]);
+  }, [gameIdParam, wallet.address, phase, lastQuestionIndex]);
 
-  // Countdown timer during playing
+  // Countdown
   useEffect(() => {
-    if (phase !== "playing") return;
-
+    if (phase !== "playing" || !currentQuestion) return;
     setTimer(15);
     if (timerRef.current) clearInterval(timerRef.current);
-
     timerRef.current = setInterval(() => {
-      setTimer((prev) => {
-        if (prev <= 1) {
-          clearInterval(timerRef.current!);
-          return 0;
-        }
-        return prev - 1;
-      });
+      setTimer((prev) => { if (prev <= 1) { clearInterval(timerRef.current!); return 0; } return prev - 1; });
     }, 1000);
-
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [phase, currentQ]);
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [phase, currentQuestion?.index]);
 
   const handleJoin = async () => {
-    if (!gameId || !gameInfo) return;
+    if (!gameIdParam || !wallet.address) return;
     setJoining(true);
     setError(null);
-
     try {
-      await contract.joinGame(gameId, gameInfo.entryFee);
-      setJoined(true);
+      await contract.joinGameOnChain(Number(gameIdParam));
+      await api.joinGame(gameIdParam, wallet.address);
       setPhase("waiting");
     } catch (err: any) {
-      setError(err.reason || err.message || "Failed to join game");
+      setError(err.reason || err.message || "Failed to join");
     } finally {
       setJoining(false);
     }
   };
 
-  const handleAnswer = (answer: string) => {
-    if (selectedAnswer) return; // already answered this question
-
-    const timeTaken = Date.now() - questionStartTime.current;
+  const handleAnswer = async (answer: string) => {
+    if (selectedAnswer || !gameIdParam || !wallet.address || !currentQuestion) return;
     setSelectedAnswer(answer);
-
-    const updatedAnswers = { ...myAnswers, [currentQ]: { answer, time: timeTaken } };
-    setMyAnswers(updatedAnswers);
-
-    // Check if correct
-    if (questions[currentQ] && answer === questions[currentQ].answer) {
-      setScore((prev) => prev + 1);
-    }
-
-    // Store in localStorage for host to read
-    if (gameId && wallet.address) {
-      const storageKey = `owambe_answers_${gameId}`;
-      const existing = localStorage.getItem(storageKey);
-      const allAnswers = existing ? JSON.parse(existing) : {};
-      allAnswers[wallet.address.toLowerCase()] = updatedAnswers;
-      localStorage.setItem(storageKey, JSON.stringify(allAnswers));
+    try {
+      const result = await api.submitAnswer(gameIdParam, wallet.address, currentQuestion.index, answer);
+      setAnswerResult({ correct: result.correct, correctAnswer: result.correctAnswer });
+      setScore(result.score);
+    } catch (err: any) {
+      setError(err.message);
     }
   };
 
-  // ── Render ──────────────────────────────────────────
-
-  if (!gameId) {
+  if (!gameIdParam) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="text-center">
-          <h1 className="text-3xl font-bold mb-4">
-            <span className="text-purple-400">OWA</span>
-            <span className="text-gold">MBE</span>
-          </h1>
-          <p className="text-purple-300">No game ID provided. Scan a QR code to join a game.</p>
+        <div className="stone-card arena-border p-10 text-center animate-fade-up">
+          <h1 className="font-arena text-3xl text-gold tracking-wider mb-3">OWAMBE</h1>
+          <p className="text-cream-dim/50 text-sm">No game ID. Scan a QR code to enter the arena.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen p-4 md:p-8">
-      {/* Header */}
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-2xl font-bold">
-          <span className="text-purple-400">OWA</span>
-          <span className="text-gold">MBE</span>
-          <span className="text-purple-500 text-sm ml-2">Game #{gameId}</span>
-        </h1>
+    <div className="min-h-screen p-4 md:p-8 max-w-2xl mx-auto">
+      <Confetti active={showConfetti} />
+
+      <header className="flex justify-between items-center mb-10">
+        <div>
+          <span className="font-arena text-xl tracking-wider">
+            <span className="text-gold">OWA</span><span className="text-cream/60">MBE</span>
+          </span>
+          <span className="text-cream-dim/30 text-xs ml-2 font-mono">#{gameIdParam}</span>
+        </div>
         <WalletButton
           address={wallet.address}
           connecting={wallet.connecting}
@@ -207,189 +148,195 @@ export function PlayerPage() {
           onDisconnect={wallet.disconnect}
           error={wallet.error}
         />
-      </div>
+      </header>
 
       {!wallet.address ? (
-        <div className="flex flex-col items-center justify-center min-h-[60vh]">
-          <h2 className="text-2xl font-bold mb-4">Join Trivia Game #{gameId}</h2>
-          <p className="text-purple-300 mb-8">Connect your wallet to play</p>
+        <div className="flex flex-col items-center justify-center min-h-[60vh] animate-fade-up">
+          <div className="stone-card arena-border p-10 text-center max-w-md">
+            <h2 className="font-arena text-2xl text-gold mb-3 tracking-wider">ENTER THE ARENA</h2>
+            <p className="text-cream-dim/50 text-sm mb-6">Connect your wallet to join the battle. Entry is free.</p>
+            <button onClick={wallet.connect} disabled={wallet.connecting} className="btn-gold w-full">
+              {wallet.connecting ? "CONNECTING..." : "CONNECT WALLET"}
+            </button>
+          </div>
         </div>
       ) : phase === "join" ? (
         /* ── JOIN PHASE ── */
-        <div className="max-w-md mx-auto space-y-6 text-center">
-          <h2 className="text-2xl font-bold">Join Game #{gameId}</h2>
+        <div className="animate-fade-up space-y-6">
+          <div className="text-center mb-6">
+            <p className="text-cream-dim/30 text-xs font-arena tracking-[0.3em] mb-2">A CHALLENGE AWAITS</p>
+            <h2 className="font-arena text-3xl text-gold tracking-wider">ARENA #{gameIdParam}</h2>
+          </div>
 
-          {gameInfo && (
-            <div className="bg-purple-900/30 border border-purple-500/20 rounded-2xl p-6 space-y-3">
-              <div className="flex justify-between text-sm">
-                <span className="text-purple-300">Prize Pool</span>
-                <span className="text-gold font-bold">{ethers.formatEther(gameInfo.prizePool)} MON</span>
+          {gameData && (
+            <div className="stone-card arena-border arch-top p-6">
+              <div className="text-center mb-6">
+                <p className="text-cream-dim/40 text-xs font-arena tracking-widest mb-1">PRIZE POOL</p>
+                <p className="text-gold font-bold text-4xl font-arena">{gameData.prizePool} <span className="text-lg">MON</span></p>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-purple-300">Entry Fee</span>
-                <span className="text-white font-bold">{ethers.formatEther(gameInfo.entryFee)} MON</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-purple-300">Players</span>
-                <span className="text-white">{gameInfo.playerCount}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-purple-300">Split</span>
-                <span className="text-white">1st: 60% | 2nd: 30% | 3rd: 10%</span>
+
+              <div className="grid grid-cols-3 gap-4 text-center border-t border-arena-border pt-4">
+                <div>
+                  <p className="text-cream-dim/30 text-xs">ENTRY</p>
+                  <p className="text-arena-green font-bold text-sm">FREE</p>
+                </div>
+                <div>
+                  <p className="text-cream-dim/30 text-xs">WARRIORS</p>
+                  <p className="text-cream font-bold text-sm">{gameData.playerCount}</p>
+                </div>
+                <div>
+                  <p className="text-cream-dim/30 text-xs">SPLIT</p>
+                  <p className="text-cream text-xs">{gameData.sharePercentages?.map((s: number) => `${s}%`).join(" / ")}</p>
+                </div>
               </div>
             </div>
           )}
 
-          {error && <p className="text-red-400 text-sm">{error}</p>}
+          {error && <p className="text-arena-red text-sm text-center">{error}</p>}
 
-          <button
-            onClick={handleJoin}
-            disabled={joining || !gameInfo}
-            className="w-full bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl text-lg transition-all cursor-pointer"
-          >
-            {joining
-              ? "Joining..."
-              : gameInfo
-              ? `Join Game — Pay ${ethers.formatEther(gameInfo.entryFee)} MON`
-              : "Loading game..."}
+          <button onClick={handleJoin} disabled={joining || !gameData} className="btn-gold w-full text-lg py-5">
+            {joining ? "ENTERING..." : "ENTER THE ARENA"}
           </button>
         </div>
       ) : phase === "waiting" ? (
         /* ── WAITING PHASE ── */
-        <div className="max-w-md mx-auto text-center space-y-6">
-          <div className="animate-spin w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full mx-auto" />
-          <h2 className="text-2xl font-bold">You're In!</h2>
-          <p className="text-purple-300">Waiting for the host to start the game...</p>
-          <div className="bg-purple-900/30 border border-purple-500/20 rounded-2xl p-6">
-            <p className="text-purple-400 text-sm">Get ready. Questions are coming.</p>
+        <div className="flex flex-col items-center justify-center min-h-[50vh] animate-fade-up">
+          <div className="stone-card arena-border p-10 text-center max-w-sm">
+            <div className="w-12 h-12 border-3 border-gold/40 border-t-gold rounded-full animate-spin mx-auto mb-6" />
+            <h2 className="font-arena text-xl text-gold tracking-wider mb-2">YOU ARE IN THE ARENA</h2>
+            <p className="text-cream-dim/40 text-sm animate-pulse">Waiting for the host to begin battle...</p>
           </div>
         </div>
       ) : phase === "playing" ? (
         /* ── PLAYING PHASE ── */
-        <div className="max-w-2xl mx-auto space-y-6">
+        <div className="animate-gate-open space-y-6">
           <div className="flex justify-between items-center">
             <div>
-              <h2 className="text-lg font-bold">
-                Q{currentQ + 1} / {questions.length}
+              <p className="text-cream-dim/30 text-xs font-arena tracking-[0.3em]">ROUND</p>
+              <h2 className="font-arena text-3xl text-gold">
+                {(currentQuestion?.index ?? 0) + 1}
+                <span className="text-cream-dim/20 text-lg ml-1">/ {currentQuestion?.totalQuestions ?? "?"}</span>
               </h2>
-              <p className="text-purple-400 text-sm">Score: {score}</p>
+              <p className="text-gold/40 text-xs mt-1">Score: {score}</p>
             </div>
-            <div
-              className={`text-5xl font-bold tabular-nums ${
-                timer <= 5 ? "text-red-400 animate-countdown" : "text-gold"
-              }`}
-            >
-              {timer}
-            </div>
+            <TimerRing seconds={timer} maxSeconds={15} size={90} />
           </div>
 
-          {questions[currentQ] && (
+          {currentQuestion ? (
             <div className="space-y-4">
-              <div className="bg-purple-900/30 border border-purple-500/20 rounded-2xl p-6">
-                <h3 className="text-lg md:text-xl font-semibold">{questions[currentQ].question}</h3>
+              <div className="stone-card arena-border p-6">
+                <h3 className="text-lg md:text-xl font-semibold text-cream leading-relaxed">
+                  {currentQuestion.question}
+                </h3>
               </div>
 
               <div className="grid grid-cols-1 gap-3">
                 {(["A", "B", "C", "D"] as const).map((key) => {
                   const isSelected = selectedAnswer === key;
-                  const isCorrect = selectedAnswer && key === questions[currentQ].answer;
-                  const isWrong = isSelected && key !== questions[currentQ].answer;
+                  const showResult = answerResult !== null;
+                  const isCorrect = showResult && key === answerResult.correctAnswer;
+                  const isWrong = isSelected && showResult && key !== answerResult.correctAnswer;
+                  const disabled = !!selectedAnswer || timer === 0;
 
                   return (
                     <button
                       key={key}
                       onClick={() => handleAnswer(key)}
-                      disabled={!!selectedAnswer || timer === 0}
-                      className={`text-left px-5 py-4 rounded-xl border transition-all cursor-pointer ${
-                        isCorrect
-                          ? "bg-green-600/30 border-green-500 text-green-300"
-                          : isWrong
-                          ? "bg-red-600/30 border-red-500 text-red-300"
-                          : isSelected
-                          ? "bg-purple-600/50 border-purple-400"
-                          : "bg-purple-800/40 border-purple-500/20 hover:border-purple-400 hover:bg-purple-700/40"
-                      } ${!!selectedAnswer || timer === 0 ? "cursor-not-allowed" : ""}`}
+                      disabled={disabled}
+                      className={`stone-tablet text-left flex items-center gap-4 ${
+                        isCorrect ? "correct" : isWrong ? "wrong" : isSelected ? "selected" : ""
+                      } ${disabled ? "cursor-not-allowed" : "cursor-pointer"}`}
                     >
-                      <span className="text-gold font-bold mr-3">{key}.</span>
-                      {questions[currentQ].options[key]}
+                      <span className={`font-arena font-bold text-lg w-8 ${
+                        isCorrect ? "text-arena-green" : isWrong ? "text-arena-red" : "text-gold"
+                      }`}>
+                        {key}
+                      </span>
+                      <span className={`${
+                        isCorrect ? "text-arena-green" : isWrong ? "text-arena-red" : "text-cream-dim"
+                      }`}>
+                        {currentQuestion.options[key]}
+                      </span>
                     </button>
                   );
                 })}
               </div>
 
-              {selectedAnswer && (
-                <p className={`text-center font-semibold ${selectedAnswer === questions[currentQ].answer ? "text-green-400" : "text-red-400"}`}>
-                  {selectedAnswer === questions[currentQ].answer ? "Correct!" : `Wrong! Answer: ${questions[currentQ].answer}`}
-                </p>
+              {answerResult && (
+                <div className={`text-center py-3 rounded-lg ${answerResult.correct ? "bg-arena-green/10" : "bg-arena-red/10"}`}>
+                  <p className={`font-arena tracking-wider text-sm ${answerResult.correct ? "text-arena-green" : "text-arena-red"}`}>
+                    {answerResult.correct ? "CORRECT!" : `WRONG — ANSWER: ${answerResult.correctAnswer}`}
+                  </p>
+                </div>
               )}
 
               {timer === 0 && !selectedAnswer && (
-                <p className="text-center text-red-400 font-semibold">Time's up!</p>
+                <div className="text-center py-3 rounded-lg bg-arena-red/10">
+                  <p className="font-arena tracking-wider text-sm text-arena-red">TIME'S UP</p>
+                </div>
               )}
+            </div>
+          ) : (
+            <div className="stone-card arena-border p-10 text-center">
+              <div className="w-8 h-8 border-3 border-gold/40 border-t-gold rounded-full animate-spin mx-auto mb-4" />
+              <p className="text-cream-dim/40 text-sm">Awaiting next round...</p>
             </div>
           )}
         </div>
       ) : (
         /* ── RESULTS PHASE ── */
-        <div className="max-w-md mx-auto text-center space-y-6">
-          <h2 className="text-3xl font-bold">Game Over!</h2>
-          <p className="text-purple-300">
-            Your Score: <span className="text-gold font-bold text-2xl">{score}</span> / {questions.length}
-          </p>
+        <div className="animate-fade-up space-y-6">
+          <div className="text-center">
+            <h2 className="font-arena text-3xl text-gold tracking-wider mb-1">THE ARENA HAS SPOKEN</h2>
+            <p className="text-cream-dim/50 text-sm">
+              Your score: <span className="text-gold font-bold">{score}</span> / {currentQuestion?.totalQuestions ?? "?"}
+            </p>
+          </div>
 
-          {results && (
-            <div className="bg-purple-900/30 border border-purple-500/20 rounded-2xl p-6">
-              <h3 className="text-xl font-bold mb-4">Leaderboard</h3>
-              {results.sortedPlayers.map((player, i) => {
-                const payout = payoutInfo?.payouts.find(
-                  (p) => p.player.toLowerCase() === player.toLowerCase()
-                );
-                const medals = ["1st", "2nd", "3rd"];
-                const colors = ["text-gold", "text-gray-300", "text-amber-600"];
-                const isMe = wallet.address?.toLowerCase() === player.toLowerCase();
+          {leaderboard && (
+            <>
+              <Podium
+                entries={leaderboard.leaderboard.slice(0, 3).map((entry: any, i: number) => {
+                  const share = leaderboard.sharePercentages[i];
+                  const pool = parseFloat(leaderboard.prizePool);
+                  return {
+                    address: entry.address,
+                    score: entry.score,
+                    rank: i + 1,
+                    winnings: share ? ((pool * share) / 100).toFixed(4) : null,
+                  };
+                })}
+              />
 
-                return (
-                  <div
-                    key={player}
-                    className={`flex items-center justify-between py-3 px-4 rounded-lg mb-2 ${
-                      isMe ? "bg-purple-600/30 border border-purple-400" : "bg-purple-800/20"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className={`font-bold ${colors[i] || "text-purple-400"}`}>
-                        {i < 3 ? medals[i] : `#${i + 1}`}
-                      </span>
-                      <span className="font-mono text-sm">
-                        {player.slice(0, 6)}...{player.slice(-4)}
-                        {isMe && <span className="text-purple-300 ml-1">(You)</span>}
-                      </span>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-white font-bold">{results.scores[player] || 0} pts</span>
-                      {payout && (
-                        <span className="text-gold ml-2 font-bold">
-                          +{ethers.formatEther(BigInt(payout.amount))} MON
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+              {/* Am I a winner? */}
+              {wallet.address && leaderboard.leaderboard.findIndex((e: any) => e.address.toLowerCase() === wallet.address!.toLowerCase()) < leaderboard.sharePercentages.length && (
+                <div className="stone-card arena-border p-6 text-center bg-gold/5">
+                  <p className="font-arena text-gold text-lg tracking-wider">YOU ARE A CHAMPION</p>
+                  <p className="text-cream-dim/60 text-sm mt-1">Your winnings have been sent to your wallet</p>
+                </div>
+              )}
 
-          {payoutInfo?.txHash && (
-            <div className="bg-green-900/20 border border-green-500/30 rounded-2xl p-6">
-              <p className="text-green-400 font-semibold mb-2">Paid on Monad — Instantly.</p>
-              <a
-                href={`https://testnet.monadexplorer.com/tx/${payoutInfo.txHash}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-purple-300 hover:text-white text-sm font-mono break-all underline"
-              >
-                {payoutInfo.txHash}
-              </a>
-            </div>
+              {/* Full leaderboard for others */}
+              {leaderboard.leaderboard.length > 3 && (
+                <div className="stone-card p-4 space-y-2">
+                  {leaderboard.leaderboard.slice(3).map((entry: any, i: number) => {
+                    const isMe = wallet.address?.toLowerCase() === entry.address.toLowerCase();
+                    return (
+                      <div key={entry.address} className={`flex items-center justify-between py-2 px-3 rounded ${isMe ? "bg-gold/5 border border-gold/20" : "bg-arena-stone/30"}`}>
+                        <div className="flex items-center gap-3">
+                          <span className="text-cream-dim/30 font-arena text-xs">#{i + 4}</span>
+                          <span className="font-mono text-xs text-cream-dim/60">
+                            {entry.address.slice(0, 6)}...{entry.address.slice(-4)}
+                            {isMe && <span className="text-gold ml-1">(You)</span>}
+                          </span>
+                        </div>
+                        <span className="text-cream-dim/40 text-sm">{entry.score} pts</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
           )}
         </div>
       )}

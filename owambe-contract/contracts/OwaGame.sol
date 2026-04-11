@@ -7,9 +7,9 @@ contract OwaGame {
     struct Game {
         address host;
         uint256 prizePool;
-        uint256 entryFee;
         GameState state;
         address[] players;
+        uint256[] sharePercentages; // e.g. [60, 30, 10] — must sum to 100
         mapping(address => bool) hasJoined;
         mapping(address => uint256) scores;
         address[] rankedPlayers;
@@ -18,7 +18,7 @@ contract OwaGame {
     uint256 public gameCount;
     mapping(uint256 => Game) private games;
 
-    event GameCreated(uint256 indexed gameId, address indexed host, uint256 prizePool, uint256 entryFee);
+    event GameCreated(uint256 indexed gameId, address indexed host, uint256 prizePool, uint256[] sharePercentages);
     event PlayerJoined(uint256 indexed gameId, address indexed player);
     event GameStarted(uint256 indexed gameId);
     event ScoresRecorded(uint256 indexed gameId);
@@ -29,8 +29,9 @@ contract OwaGame {
         _;
     }
 
-    /// @notice Host creates a game, deposits prize pool, sets entry fee
-    function createGame(uint256 _entryFee) external payable returns (uint256) {
+    /// @notice Host creates a game, deposits prize pool, sets sharing formula
+    /// @param _sharePercentages Array of percentages for winners (must sum to 100). Pass empty for default [60, 30, 10].
+    function createGame(uint256[] calldata _sharePercentages) external payable returns (uint256) {
         require(msg.value > 0, "Must deposit prize pool");
 
         gameCount++;
@@ -39,25 +40,37 @@ contract OwaGame {
         Game storage g = games[gameId];
         g.host = msg.sender;
         g.prizePool = msg.value;
-        g.entryFee = _entryFee;
         g.state = GameState.OPEN;
 
-        emit GameCreated(gameId, msg.sender, msg.value, _entryFee);
+        if (_sharePercentages.length == 0) {
+            // Default: 60/30/10
+            g.sharePercentages.push(60);
+            g.sharePercentages.push(30);
+            g.sharePercentages.push(10);
+        } else {
+            uint256 total = 0;
+            for (uint256 i = 0; i < _sharePercentages.length; i++) {
+                require(_sharePercentages[i] > 0, "Share must be > 0");
+                total += _sharePercentages[i];
+                g.sharePercentages.push(_sharePercentages[i]);
+            }
+            require(total == 100, "Shares must sum to 100");
+        }
+
+        emit GameCreated(gameId, msg.sender, msg.value, g.sharePercentages);
         return gameId;
     }
 
-    /// @notice Player joins a game by paying the entry fee
-    function joinGame(uint256 _gameId) external payable {
+    /// @notice Player joins a game for free
+    function joinGame(uint256 _gameId) external {
         Game storage g = games[_gameId];
         require(g.host != address(0), "Game does not exist");
         require(g.state == GameState.OPEN, "Game not open");
         require(!g.hasJoined[msg.sender], "Already joined");
         require(msg.sender != g.host, "Host cannot join");
-        require(msg.value == g.entryFee, "Wrong entry fee");
 
         g.hasJoined[msg.sender] = true;
         g.players.push(msg.sender);
-        g.prizePool += msg.value;
 
         emit PlayerJoined(_gameId, msg.sender);
     }
@@ -82,13 +95,12 @@ contract OwaGame {
         require(g.state == GameState.ACTIVE, "Game not active");
         require(_players.length == _scores.length, "Length mismatch");
 
-        // Verify all addresses are actual players
         for (uint256 i = 0; i < _players.length; i++) {
             require(g.hasJoined[_players[i]], "Not a player");
             g.scores[_players[i]] = _scores[i];
         }
 
-        // Sort players by score (descending) — simple insertion sort, max ~20 players
+        // Sort players by score descending — insertion sort, max ~50 players
         address[] memory sorted = new address[](_players.length);
         for (uint256 i = 0; i < _players.length; i++) {
             sorted[i] = _players[i];
@@ -105,7 +117,6 @@ contract OwaGame {
             sorted[uint256(j + 1)] = key;
         }
 
-        // Store ranked players
         for (uint256 i = 0; i < sorted.length; i++) {
             g.rankedPlayers.push(sorted[i]);
         }
@@ -113,7 +124,6 @@ contract OwaGame {
         g.state = GameState.FINISHED;
         emit ScoresRecorded(_gameId);
 
-        // Payout
         _payout(_gameId, sorted);
     }
 
@@ -121,6 +131,7 @@ contract OwaGame {
         Game storage g = games[_gameId];
         uint256 pot = g.prizePool;
         uint256 playerCount = _sorted.length;
+        uint256 winnerSlots = g.sharePercentages.length;
 
         if (playerCount == 0) {
             // No players — refund host
@@ -129,45 +140,48 @@ contract OwaGame {
             return;
         }
 
-        if (playerCount == 1) {
-            // 1 player — they get everything
-            (bool sent, ) = _sorted[0].call{value: pot}("");
-            require(sent, "Payout failed");
-            emit Payout(_gameId, _sorted[0], pot, 1);
-            return;
+        // Number of actual winners = min(playerCount, winnerSlots)
+        uint256 actualWinners = playerCount < winnerSlots ? playerCount : winnerSlots;
+
+        if (actualWinners < winnerSlots) {
+            // Fewer players than winner slots — redistribute shares among existing players
+            // Recalculate: take only the first `actualWinners` shares and scale to 100
+            uint256 usedTotal = 0;
+            for (uint256 i = 0; i < actualWinners; i++) {
+                usedTotal += g.sharePercentages[i];
+            }
+
+            uint256 paid = 0;
+            for (uint256 i = 0; i < actualWinners; i++) {
+                uint256 amount;
+                if (i == actualWinners - 1) {
+                    amount = pot - paid; // last winner gets remainder
+                } else {
+                    amount = (pot * g.sharePercentages[i]) / usedTotal;
+                }
+                paid += amount;
+
+                (bool sent, ) = _sorted[i].call{value: amount}("");
+                require(sent, "Payout failed");
+                emit Payout(_gameId, _sorted[i], amount, i + 1);
+            }
+        } else {
+            // Normal case — enough players for all winner slots
+            uint256 paid = 0;
+            for (uint256 i = 0; i < winnerSlots; i++) {
+                uint256 amount;
+                if (i == winnerSlots - 1) {
+                    amount = pot - paid; // last winner gets remainder to avoid rounding loss
+                } else {
+                    amount = (pot * g.sharePercentages[i]) / 100;
+                }
+                paid += amount;
+
+                (bool sent, ) = _sorted[i].call{value: amount}("");
+                require(sent, "Payout failed");
+                emit Payout(_gameId, _sorted[i], amount, i + 1);
+            }
         }
-
-        if (playerCount == 2) {
-            // 2 players — 70% / 30%
-            uint256 prize1 = (pot * 70) / 100;
-            uint256 prize2 = pot - prize1;
-
-            (bool ok1, ) = _sorted[0].call{value: prize1}("");
-            require(ok1, "Payout 1 failed");
-            emit Payout(_gameId, _sorted[0], prize1, 1);
-
-            (bool ok2, ) = _sorted[1].call{value: prize2}("");
-            require(ok2, "Payout 2 failed");
-            emit Payout(_gameId, _sorted[1], prize2, 2);
-            return;
-        }
-
-        // 3+ players — 60% / 30% / 10%
-        uint256 first = (pot * 60) / 100;
-        uint256 second = (pot * 30) / 100;
-        uint256 third = pot - first - second; // remainder to avoid rounding loss
-
-        (bool sent1, ) = _sorted[0].call{value: first}("");
-        require(sent1, "Payout 1 failed");
-        emit Payout(_gameId, _sorted[0], first, 1);
-
-        (bool sent2, ) = _sorted[1].call{value: second}("");
-        require(sent2, "Payout 2 failed");
-        emit Payout(_gameId, _sorted[1], second, 2);
-
-        (bool sent3, ) = _sorted[2].call{value: third}("");
-        require(sent3, "Payout 3 failed");
-        emit Payout(_gameId, _sorted[2], third, 3);
     }
 
     // ── View Functions ──────────────────────────────────────────
@@ -175,12 +189,12 @@ contract OwaGame {
     function getGame(uint256 _gameId) external view returns (
         address host,
         uint256 prizePool,
-        uint256 entryFee,
         GameState state,
-        uint256 playerCount
+        uint256 playerCount,
+        uint256[] memory sharePercentages
     ) {
         Game storage g = games[_gameId];
-        return (g.host, g.prizePool, g.entryFee, g.state, g.players.length);
+        return (g.host, g.prizePool, g.state, g.players.length, g.sharePercentages);
     }
 
     function getPlayers(uint256 _gameId) external view returns (address[] memory) {

@@ -1,4 +1,5 @@
 export const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS || "";
+export const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
 export const MONAD_TESTNET = {
   chainId: "0x279F", // 10143
@@ -19,7 +20,7 @@ export const OWA_GAME_ABI = [
       { indexed: true, internalType: "uint256", name: "gameId", type: "uint256" },
       { indexed: true, internalType: "address", name: "host", type: "address" },
       { indexed: false, internalType: "uint256", name: "prizePool", type: "uint256" },
-      { indexed: false, internalType: "uint256", name: "entryFee", type: "uint256" },
+      { indexed: false, internalType: "uint256[]", name: "sharePercentages", type: "uint256[]" },
     ],
     name: "GameCreated",
     type: "event",
@@ -57,7 +58,7 @@ export const OWA_GAME_ABI = [
     type: "event",
   },
   {
-    inputs: [{ internalType: "uint256", name: "_entryFee", type: "uint256" }],
+    inputs: [{ internalType: "uint256[]", name: "_sharePercentages", type: "uint256[]" }],
     name: "createGame",
     outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
     stateMutability: "payable",
@@ -76,9 +77,9 @@ export const OWA_GAME_ABI = [
     outputs: [
       { internalType: "address", name: "host", type: "address" },
       { internalType: "uint256", name: "prizePool", type: "uint256" },
-      { internalType: "uint256", name: "entryFee", type: "uint256" },
       { internalType: "enum OwaGame.GameState", name: "state", type: "uint8" },
       { internalType: "uint256", name: "playerCount", type: "uint256" },
+      { internalType: "uint256[]", name: "sharePercentages", type: "uint256[]" },
     ],
     stateMutability: "view",
     type: "function",
@@ -121,7 +122,7 @@ export const OWA_GAME_ABI = [
     inputs: [{ internalType: "uint256", name: "_gameId", type: "uint256" }],
     name: "joinGame",
     outputs: [],
-    stateMutability: "payable",
+    stateMutability: "nonpayable",
     type: "function",
   },
   {

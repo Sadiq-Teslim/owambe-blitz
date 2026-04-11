@@ -9,14 +9,12 @@ export function useContract(signer: JsonRpcSigner | null) {
   }, [signer]);
 
   const createGame = useCallback(
-    async (prizePool: string, entryFee: string) => {
+    async (prizePool: string, sharePercentages: number[]) => {
       const contract = getContract();
-      if (!contract) throw new Error("Contract not available");
+      if (!contract) throw new Error("Contract not available. Check wallet and contract address.");
 
-      const entryFeeWei = ethers.parseEther(entryFee);
       const prizePoolWei = ethers.parseEther(prizePool);
-
-      const tx = await contract.createGame(entryFeeWei, { value: prizePoolWei });
+      const tx = await contract.createGame(sharePercentages, { value: prizePoolWei });
       const receipt = await tx.wait();
 
       // Extract gameId from GameCreated event
@@ -31,25 +29,21 @@ export function useContract(signer: JsonRpcSigner | null) {
 
       if (event) {
         const parsed = contract.interface.parseLog({ topics: event.topics as string[], data: event.data });
-        return {
-          gameId: Number(parsed!.args.gameId),
-          txHash: receipt.hash,
-        };
+        return { gameId: Number(parsed!.args.gameId), txHash: receipt.hash };
       }
 
-      // Fallback: read gameCount
       const gameCount = await contract.gameCount();
       return { gameId: Number(gameCount), txHash: receipt.hash };
     },
     [getContract]
   );
 
-  const joinGame = useCallback(
-    async (gameId: number, entryFee: bigint) => {
+  const joinGameOnChain = useCallback(
+    async (gameId: number) => {
       const contract = getContract();
       if (!contract) throw new Error("Contract not available");
 
-      const tx = await contract.joinGame(gameId, { value: entryFee });
+      const tx = await contract.joinGame(gameId);
       const receipt = await tx.wait();
       return receipt.hash;
     },
@@ -67,26 +61,6 @@ export function useContract(signer: JsonRpcSigner | null) {
     [getContract]
   );
 
-  const getGameInfo = useCallback(
-    async (gameId: number) => {
-      const contract = getContract();
-      if (!contract) throw new Error("Contract not available");
-
-      const [host, prizePool, entryFee, state, playerCount] = await contract.getGame(gameId);
-      const players = await contract.getPlayers(gameId);
-
-      return {
-        host: host as string,
-        prizePool: prizePool as bigint,
-        entryFee: entryFee as bigint,
-        state: Number(state),
-        playerCount: Number(playerCount),
-        players: players as string[],
-      };
-    },
-    [getContract]
-  );
-
   const recordScores = useCallback(
     async (gameId: number, players: string[], scores: number[]) => {
       const contract = getContract();
@@ -95,7 +69,6 @@ export function useContract(signer: JsonRpcSigner | null) {
       const tx = await contract.recordScores(gameId, players, scores);
       const receipt = await tx.wait();
 
-      // Extract payout events
       const payouts: { player: string; amount: bigint; rank: number }[] = [];
       for (const log of receipt.logs) {
         try {
@@ -108,7 +81,7 @@ export function useContract(signer: JsonRpcSigner | null) {
             });
           }
         } catch {
-          // skip non-matching logs
+          // skip
         }
       }
 
@@ -117,14 +90,25 @@ export function useContract(signer: JsonRpcSigner | null) {
     [getContract]
   );
 
-  const getRankedPlayers = useCallback(
+  const getGameInfo = useCallback(
     async (gameId: number) => {
       const contract = getContract();
       if (!contract) throw new Error("Contract not available");
-      return (await contract.getRankedPlayers(gameId)) as string[];
+
+      const [host, prizePool, state, playerCount, sharePercentages] = await contract.getGame(gameId);
+      const players = await contract.getPlayers(gameId);
+
+      return {
+        host: host as string,
+        prizePool: prizePool as bigint,
+        state: Number(state),
+        playerCount: Number(playerCount),
+        sharePercentages: (sharePercentages as bigint[]).map(Number),
+        players: players as string[],
+      };
     },
     [getContract]
   );
 
-  return { createGame, joinGame, startGame, getGameInfo, recordScores, getRankedPlayers };
+  return { createGame, joinGameOnChain, startGame, recordScores, getGameInfo };
 }

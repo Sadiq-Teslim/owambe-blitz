@@ -1,40 +1,302 @@
 @import "tailwindcss";
 
 @theme {
-  --color-purple-950: #0a0015;
-  --color-purple-900: #1a0033;
-  --color-purple-800: #2d0056;
-  --color-purple-700: #4a0080;
-  --color-purple-600: #6b21a8;
-  --color-purple-500: #8b5cf6;
-  --color-purple-400: #a78bfa;
-  --color-purple-300: #c4b5fd;
-  --color-gold: #f59e0b;
-  --color-gold-light: #fbbf24;
+  --color-arena-black: #0a0a0a;
+  --color-arena-dark: #111111;
+  --color-arena-stone: #1a1a1a;
+  --color-arena-stone-light: #2a2a2a;
+  --color-arena-border: #333333;
+  --color-gold: #d4a843;
+  --color-gold-light: #e8c56d;
+  --color-gold-dark: #b8922e;
+  --color-gold-dim: rgba(212, 168, 67, 0.15);
+  --color-gold-glow: rgba(212, 168, 67, 0.4);
+  --color-cream: #f5e6c8;
+  --color-cream-dim: rgba(245, 230, 200, 0.6);
+  --color-blood: #8b2020;
+  --color-blood-bright: #dc2626;
+  --color-arena-green: #22c55e;
+  --color-arena-red: #ef4444;
+  --font-arena: 'Cinzel', 'Palatino Linotype', 'Book Antiqua', Georgia, serif;
+  --font-body: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
   margin: 0;
-  background: linear-gradient(135deg, var(--color-purple-950) 0%, var(--color-purple-900) 50%, #1e0040 100%);
+  background: var(--color-arena-black);
   min-height: 100vh;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  color: white;
+  font-family: var(--font-body);
+  color: var(--color-cream);
+  overflow-x: hidden;
 }
 
-@keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 20px rgba(139, 92, 246, 0.3); }
-  50% { box-shadow: 0 0 40px rgba(139, 92, 246, 0.6); }
+/* Stone texture overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    radial-gradient(ellipse at 20% 50%, rgba(212, 168, 67, 0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(212, 168, 67, 0.02) 0%, transparent 50%),
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+}
+
+#root {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Arena heading font ───────────────────────────────── */
+.font-arena {
+  font-family: var(--font-arena);
+  letter-spacing: 0.05em;
+}
+
+/* ── Stone card ───────────────────────────────────────── */
+.stone-card {
+  background: linear-gradient(145deg, #1a1a1a 0%, #141414 100%);
+  border: 1px solid #2a2a2a;
+  border-radius: 12px;
+  position: relative;
+  overflow: hidden;
+}
+
+.stone-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: url("data:image/svg+xml,%3Csvg viewBox='0 0 128 128' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='1.2' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+}
+
+/* ── Gold border accent card ──────────────────────────── */
+.arena-border {
+  position: relative;
+  border: 1px solid rgba(212, 168, 67, 0.2);
+  border-radius: 12px;
+}
+
+.arena-border::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: 20%;
+  right: 20%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--color-gold), transparent);
+}
+
+/* ── Arch decorative top ──────────────────────────────── */
+.arch-top {
+  position: relative;
+}
+
+.arch-top::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60px;
+  height: 4px;
+  background: var(--color-gold);
+  border-radius: 0 0 8px 8px;
+}
+
+/* ── Gold CTA button ──────────────────────────────────── */
+.btn-gold {
+  background: linear-gradient(135deg, var(--color-gold-dark) 0%, var(--color-gold) 50%, var(--color-gold-light) 100%);
+  color: #0a0a0a;
+  font-family: var(--font-arena);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border: none;
+  border-radius: 12px;
+  padding: 16px 32px;
+  font-size: 16px;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 20px rgba(212, 168, 67, 0.3);
+}
+
+.btn-gold:hover {
+  box-shadow: 0 6px 30px rgba(212, 168, 67, 0.5);
+  transform: translateY(-1px);
+}
+
+.btn-gold:active {
+  transform: translateY(0);
+}
+
+.btn-gold:disabled {
+  background: #333;
+  color: #666;
+  box-shadow: none;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-gold::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(transparent, rgba(255,255,255,0.1), transparent);
+  transform: rotate(45deg);
+  transition: all 0.5s;
+  opacity: 0;
+}
+
+.btn-gold:hover::after {
+  opacity: 1;
+  animation: shimmer 1.5s infinite;
+}
+
+/* ── Stone tablet answer button ───────────────────────── */
+.stone-tablet {
+  background: linear-gradient(135deg, #1e1e1e 0%, #181818 100%);
+  border: 1px solid #333;
+  border-radius: 12px;
+  padding: 16px 20px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.stone-tablet:hover {
+  border-color: var(--color-gold);
+  background: linear-gradient(135deg, #222 0%, #1a1a1a 100%);
+  box-shadow: 0 0 20px rgba(212, 168, 67, 0.15);
+}
+
+.stone-tablet.selected {
+  border-color: var(--color-gold);
+  background: linear-gradient(135deg, rgba(212, 168, 67, 0.15) 0%, rgba(212, 168, 67, 0.05) 100%);
+}
+
+.stone-tablet.correct {
+  border-color: var(--color-arena-green);
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(34, 197, 94, 0.05) 100%);
+}
+
+.stone-tablet.wrong {
+  border-color: var(--color-arena-red);
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(239, 68, 68, 0.05) 100%);
+}
+
+/* ── Animations ───────────────────────────────────────── */
+@keyframes shimmer {
+  0% { transform: translateX(-100%) rotate(45deg); }
+  100% { transform: translateX(100%) rotate(45deg); }
+}
+
+@keyframes pulse-gold {
+  0%, 100% { box-shadow: 0 0 20px rgba(212, 168, 67, 0.2); }
+  50% { box-shadow: 0 0 40px rgba(212, 168, 67, 0.5); }
 }
 
 @keyframes countdown-pulse {
   0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.1); }
+  50% { transform: scale(1.08); }
 }
 
-.animate-pulse-glow {
-  animation: pulse-glow 2s ease-in-out infinite;
+@keyframes gate-open {
+  0% { transform: scaleY(0); opacity: 0; }
+  100% { transform: scaleY(1); opacity: 1; }
 }
 
-.animate-countdown {
-  animation: countdown-pulse 1s ease-in-out infinite;
+@keyframes fade-up {
+  0% { transform: translateY(20px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes fade-in {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(212, 168, 67, 0.4); }
+  50% { box-shadow: 0 0 0 12px rgba(212, 168, 67, 0); }
+}
+
+@keyframes confetti-fall {
+  0% { transform: translateY(-100vh) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+}
+
+@keyframes podium-rise {
+  0% { transform: translateY(40px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes crown-bounce {
+  0%, 100% { transform: rotate(-5deg) scale(1); }
+  50% { transform: rotate(5deg) scale(1.1); }
+}
+
+.animate-pulse-gold { animation: pulse-gold 2s ease-in-out infinite; }
+.animate-countdown { animation: countdown-pulse 1s ease-in-out infinite; }
+.animate-gate-open { animation: gate-open 0.5s ease-out forwards; }
+.animate-fade-up { animation: fade-up 0.6s ease-out forwards; }
+.animate-fade-in { animation: fade-in 0.4s ease-out forwards; }
+.animate-float { animation: float 3s ease-in-out infinite; }
+.animate-mic-pulse { animation: mic-pulse 1.5s ease-in-out infinite; }
+.animate-podium-rise { animation: podium-rise 0.8s ease-out forwards; }
+.animate-crown-bounce { animation: crown-bounce 2s ease-in-out infinite; }
+
+/* Stagger children animations */
+.stagger-children > * { opacity: 0; animation: fade-up 0.5s ease-out forwards; }
+.stagger-children > *:nth-child(1) { animation-delay: 0.1s; }
+.stagger-children > *:nth-child(2) { animation-delay: 0.2s; }
+.stagger-children > *:nth-child(3) { animation-delay: 0.3s; }
+.stagger-children > *:nth-child(4) { animation-delay: 0.4s; }
+.stagger-children > *:nth-child(5) { animation-delay: 0.5s; }
+
+/* ── Timer ring ───────────────────────────────────────── */
+.timer-ring {
+  transform: rotate(-90deg);
+}
+
+.timer-ring circle {
+  fill: none;
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+
+/* ── Scrollbar ────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--color-arena-black); }
+::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-gold-dark); }
+
+/* ── Confetti particles ───────────────────────────────── */
+.confetti-piece {
+  position: fixed;
+  width: 10px;
+  height: 10px;
+  top: -10px;
+  z-index: 100;
+  animation: confetti-fall linear forwards;
 }
