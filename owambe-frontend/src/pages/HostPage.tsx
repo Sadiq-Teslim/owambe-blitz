@@ -20,6 +20,12 @@ interface LeaderboardEntry {
   totalTime: number;
 }
 
+interface CustomQuestion {
+  question: string;
+  options: { A: string; B: string; C: string; D: string };
+  answer: "A" | "B" | "C" | "D";
+}
+
 export function HostPage() {
   const wallet = useWallet();
   const contract = useContract(wallet.signer);
@@ -31,13 +37,15 @@ export function HostPage() {
   const [splitType, setSplitType] = useState<"default" | "custom">("default");
   const [customSplits, setCustomSplits] = useState("60,30,10");
   const [inputMode, setInputMode] = useState<"voice" | "manual">("voice");
+  const [questionMode, setQuestionMode] = useState<"ai" | "custom">("ai");
+  const [customQuestions, setCustomQuestions] = useState<CustomQuestion[]>([]);
 
   // Game state
   const [phase, setPhase] = useState<GamePhase>("setup");
   const [gameId, setGameId] = useState<string | null>(null);
   const [questions, setQuestions] = useState<any[]>([]);
   const [currentQ, setCurrentQ] = useState(0);
-  const [timer, setTimer] = useState(15);
+  const [timer, setTimer] = useState(10);
   const [gameData, setGameData] = useState<any>(null);
 
   // Results
@@ -52,33 +60,99 @@ export function HostPage() {
   const [error, setError] = useState<string | null>(null);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const payoutTriggered = useRef(false);
 
   const sharePercentages = splitType === "default"
     ? [60, 30, 10]
     : customSplits.split(",").map((s) => Number(s.trim()));
 
-  // Poll game state from backend
+  // Poll game state — auto-advance is server-side, we just read it
   useEffect(() => {
-    if (!gameId || phase === "setup" || phase === "results") return;
+    if (!gameId || phase === "setup") return;
     const poll = setInterval(async () => {
-      try { setGameData(await api.getGame(gameId)); } catch { /* ignore */ }
-    }, 2000);
+      try {
+        const data = await api.getGame(gameId);
+        setGameData(data);
+
+        if (data.phase === "active") {
+          if (data.currentQuestion !== undefined) {
+            setCurrentQ(data.currentQuestion.index ?? data.currentQuestion);
+          }
+        }
+
+        if (data.phase === "finished" && phase === "playing") {
+          // Game just ended — fetch leaderboard
+          const lb = await api.getLeaderboard(gameId);
+          setLeaderboard(lb.leaderboard);
+          setPhase("results");
+          setShowConfetti(true);
+          setTimeout(() => setShowConfetti(false), 5000);
+        }
+      } catch { /* ignore */ }
+    }, 1500);
     return () => clearInterval(poll);
   }, [gameId, phase]);
 
-  // Countdown timer
+  // In results phase, poll for winner wallet claims and auto-pay
+  useEffect(() => {
+    if (phase !== "results" || !gameId || payoutTriggered.current || payoutTxHash) return;
+    const poll = setInterval(async () => {
+      try {
+        const data = await api.getWinners(gameId);
+        if (data.allClaimed && !payoutTriggered.current) {
+          payoutTriggered.current = true;
+          clearInterval(poll);
+          // All winners claimed — auto trigger payout
+          await triggerPayout(data.winners);
+        }
+      } catch { /* ignore */ }
+    }, 2000);
+    return () => clearInterval(poll);
+  }, [phase, gameId, payoutTxHash]);
+
+  // Countdown timer — syncs with server questionStartedAt
   useEffect(() => {
     if (phase !== "playing") return;
-    setTimer(15);
+
     if (timerRef.current) clearInterval(timerRef.current);
-    timerRef.current = setInterval(() => {
-      setTimer((prev) => {
-        if (prev <= 1) { clearInterval(timerRef.current!); return 0; }
-        return prev - 1;
-      });
-    }, 1000);
+
+    const updateTimer = () => {
+      if (gameData?.currentQuestion?.startedAt) {
+        const elapsed = (Date.now() - gameData.currentQuestion.startedAt) / 1000;
+        const remaining = Math.max(0, 10 - Math.floor(elapsed));
+        setTimer(remaining);
+      }
+    };
+
+    updateTimer();
+    timerRef.current = setInterval(updateTimer, 500);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [phase, currentQ]);
+  }, [phase, gameData?.currentQuestion?.index]);
+
+  const triggerPayout = async (winners: { email: string; walletAddress: string | null; rank: number }[]) => {
+    setPaying(true);
+    setError(null);
+    try {
+      const wallets = winners
+        .filter((w) => w.walletAddress)
+        .map((w) => ethers.getAddress(w.walletAddress!));
+
+      if (wallets.length === 0) {
+        setError("No winners have submitted wallet addresses yet");
+        setPaying(false);
+        return;
+      }
+
+      const result = await contract.payoutWinners(Number(gameId), wallets);
+      setPayoutTxHash(result.txHash);
+      setPayouts(result.payouts);
+    } catch (err: any) {
+      setError(err.reason || err.message || "Payout failed");
+      payoutTriggered.current = false; // Allow retry
+    } finally {
+      setPaying(false);
+    }
+  };
 
   const handleVoiceConfig = (config: { topic: string; prizePool: string; questionCount: number; sharePercentages: number[] }) => {
     setTopic(config.topic);
@@ -88,7 +162,7 @@ export function HostPage() {
       setSplitType("custom");
       setCustomSplits(config.sharePercentages.join(","));
     }
-    setInputMode("manual"); // Switch to manual so they can review/edit
+    setInputMode("manual");
   };
 
   const handleCreateGame = async () => {
@@ -100,6 +174,16 @@ export function HostPage() {
         return;
       }
     }
+    if (questionMode === "custom") {
+      if (customQuestions.length === 0) { setError("Add at least one question"); return; }
+      for (const q of customQuestions) {
+        if (!q.question || !q.options.A || !q.options.B || !q.options.C || !q.options.D || !q.answer) {
+          setError("All custom questions must be fully filled out");
+          return;
+        }
+      }
+    }
+
     setError(null);
     setCreating(true);
     try {
@@ -111,6 +195,7 @@ export function HostPage() {
         prizePool,
         sharePercentages,
         questionCount,
+        ...(questionMode === "custom" ? { customQuestions } : {}),
       });
       setGameId(String(chainResult.gameId));
       setQuestions(backendResult.questions);
@@ -134,61 +219,24 @@ export function HostPage() {
     }
   };
 
-  const handleNextQuestion = async () => {
-    if (!gameId) return;
-    setError(null);
-    try {
-      const result = await api.nextQuestion(gameId, wallet.address!);
-      if (result.phase === "finished") {
-        await handleGameEnd(result.leaderboard);
-      } else {
-        setCurrentQ(result.currentQuestion);
-      }
-    } catch (err: any) { setError(err.message); }
+  // Custom question helpers
+  const addCustomQuestion = () => {
+    setCustomQuestions([...customQuestions, { question: "", options: { A: "", B: "", C: "", D: "" }, answer: "A" }]);
   };
 
-  const handleGameEnd = async (lb?: LeaderboardEntry[]) => {
-    if (!gameId) return;
-    let finalLb = lb;
-    if (!finalLb) {
-      const result = await api.getLeaderboard(gameId);
-      finalLb = result.leaderboard;
+  const updateCustomQuestion = (index: number, field: string, value: string) => {
+    const updated = [...customQuestions];
+    if (field === "question") updated[index].question = value;
+    else if (field === "answer") updated[index].answer = value as "A" | "B" | "C" | "D";
+    else if (field.startsWith("option_")) {
+      const key = field.replace("option_", "") as "A" | "B" | "C" | "D";
+      updated[index].options[key] = value;
     }
-    setLeaderboard(finalLb!);
-    setPhase("results");
-    setShowConfetti(true);
-    setTimeout(() => setShowConfetti(false), 5000);
-
-    // Payout happens after winners submit wallet addresses via claim
-    // Host triggers payout manually once winners have claimed
+    setCustomQuestions(updated);
   };
 
-  const handlePayout = async () => {
-    if (!gameId || !leaderboard.length) return;
-    setPaying(true);
-    setError(null);
-    try {
-      // Get winners who have submitted wallet addresses
-      const lbData = await api.getLeaderboard(gameId);
-      const winners = lbData.leaderboard
-        .slice(0, lbData.sharePercentages.length)
-        .filter((e: any) => e.walletAddress)
-        .map((e: any) => ethers.getAddress(e.walletAddress));
-
-      if (winners.length === 0) {
-        setError("No winners have submitted wallet addresses yet");
-        setPaying(false);
-        return;
-      }
-
-      const result = await contract.payoutWinners(Number(gameId), winners);
-      setPayoutTxHash(result.txHash);
-      setPayouts(result.payouts);
-    } catch (err: any) {
-      setError(err.reason || err.message || "Payout failed");
-    } finally {
-      setPaying(false);
-    }
+  const removeCustomQuestion = (index: number) => {
+    setCustomQuestions(customQuestions.filter((_, i) => i !== index));
   };
 
   const joinUrl = gameId ? `${window.location.origin}/join?game=${gameId}` : "";
@@ -293,25 +341,89 @@ export function HostPage() {
                 />
               </div>
 
-              {/* Question Count */}
+              {/* Question source toggle */}
               <div>
-                <label className="block text-cream-dim/50 text-xs font-arena tracking-wider mb-2">ROUNDS</label>
-                <div className="flex gap-2">
-                  {[2, 3, 5].map((n) => (
-                    <button
-                      key={n}
-                      onClick={() => setQuestionCount(n)}
-                      className={`flex-1 py-2.5 rounded-lg text-sm font-arena tracking-wider transition-all cursor-pointer ${
-                        questionCount === n
-                          ? "bg-gold/15 text-gold border border-gold/40"
-                          : "bg-arena-stone border border-arena-border text-cream-dim/40 hover:text-cream-dim"
-                      }`}
-                    >
-                      {n}
-                    </button>
-                  ))}
+                <label className="block text-cream-dim/50 text-xs font-arena tracking-wider mb-2">QUESTIONS</label>
+                <div className="flex gap-2 mb-3">
+                  <button
+                    onClick={() => setQuestionMode("ai")}
+                    className={`flex-1 py-2 rounded-lg text-xs font-arena tracking-wider transition-all cursor-pointer ${
+                      questionMode === "ai"
+                        ? "bg-gold/15 text-gold border border-gold/40"
+                        : "bg-arena-stone border border-arena-border text-cream-dim/40"
+                    }`}
+                  >
+                    AI GENERATED
+                  </button>
+                  <button
+                    onClick={() => setQuestionMode("custom")}
+                    className={`flex-1 py-2 rounded-lg text-xs font-arena tracking-wider transition-all cursor-pointer ${
+                      questionMode === "custom"
+                        ? "bg-gold/15 text-gold border border-gold/40"
+                        : "bg-arena-stone border border-arena-border text-cream-dim/40"
+                    }`}
+                  >
+                    WRITE YOUR OWN
+                  </button>
                 </div>
               </div>
+
+              {questionMode === "ai" ? (
+                /* AI question count */
+                <div>
+                  <label className="block text-cream-dim/50 text-xs font-arena tracking-wider mb-2">NUMBER OF ROUNDS</label>
+                  <input
+                    type="number"
+                    value={questionCount}
+                    onChange={(e) => setQuestionCount(Math.max(1, Number(e.target.value)))}
+                    min="1"
+                    max="20"
+                    className="w-full bg-arena-stone border border-arena-border rounded-lg px-4 py-3 text-cream focus:outline-none focus:border-gold/50 transition-colors"
+                  />
+                </div>
+              ) : (
+                /* Custom questions editor */
+                <div className="space-y-4">
+                  {customQuestions.map((q, i) => (
+                    <div key={i} className="bg-arena-stone/50 rounded-lg p-4 space-y-3 border border-arena-border">
+                      <div className="flex justify-between items-center">
+                        <span className="text-gold font-arena text-sm">QUESTION {i + 1}</span>
+                        <button onClick={() => removeCustomQuestion(i)} className="text-arena-red/60 hover:text-arena-red text-xs cursor-pointer">REMOVE</button>
+                      </div>
+                      <input
+                        type="text"
+                        value={q.question}
+                        onChange={(e) => updateCustomQuestion(i, "question", e.target.value)}
+                        placeholder="Type your question..."
+                        className="w-full bg-arena-stone border border-arena-border rounded px-3 py-2 text-cream text-sm placeholder-cream/20 focus:outline-none focus:border-gold/50"
+                      />
+                      {(["A", "B", "C", "D"] as const).map((key) => (
+                        <div key={key} className="flex items-center gap-2">
+                          <button
+                            onClick={() => updateCustomQuestion(i, "answer", key)}
+                            className={`w-8 h-8 rounded text-xs font-arena font-bold flex items-center justify-center cursor-pointer transition-all ${
+                              q.answer === key ? "bg-arena-green/20 text-arena-green border border-arena-green/40" : "bg-arena-stone border border-arena-border text-cream-dim/40"
+                            }`}
+                          >
+                            {key}
+                          </button>
+                          <input
+                            type="text"
+                            value={q.options[key]}
+                            onChange={(e) => updateCustomQuestion(i, `option_${key}`, e.target.value)}
+                            placeholder={`Option ${key}`}
+                            className="flex-1 bg-arena-stone border border-arena-border rounded px-3 py-1.5 text-cream text-sm placeholder-cream/20 focus:outline-none focus:border-gold/50"
+                          />
+                        </div>
+                      ))}
+                      <p className="text-cream-dim/30 text-xs">Click a letter to mark it as the correct answer</p>
+                    </div>
+                  ))}
+                  <button onClick={addCustomQuestion} className="w-full py-3 rounded-lg border border-dashed border-gold/30 text-gold/60 text-sm font-arena tracking-wider hover:border-gold/60 hover:text-gold transition-all cursor-pointer">
+                    + ADD QUESTION
+                  </button>
+                </div>
+              )}
 
               {/* Split */}
               <div>
@@ -353,7 +465,6 @@ export function HostPage() {
 
           {error && <p className="text-arena-red text-sm text-center">{error}</p>}
 
-          {/* CTA — only show when we have a topic (from voice or manual) */}
           {(topic.trim() || inputMode === "manual") && (
             <button
               onClick={handleCreateGame}
@@ -380,7 +491,6 @@ export function HostPage() {
             </div>
             <p className="text-cream-dim/30 text-xs font-mono mt-4 break-all max-w-xs text-center">{joinUrl}</p>
 
-            {/* Share buttons */}
             <div className="flex gap-3 mt-4">
               <button onClick={handleShare} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gold/10 border border-gold/20 text-gold text-sm hover:bg-gold/20 transition-all cursor-pointer">
                 <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
@@ -447,9 +557,8 @@ export function HostPage() {
           </button>
         </div>
       ) : phase === "playing" ? (
-        /* ── PLAYING PHASE ── */
+        /* ── PLAYING PHASE — auto-advancing ── */
         <div className="animate-gate-open space-y-6">
-          {/* Round header */}
           <div className="flex justify-between items-center">
             <div>
               <p className="text-cream-dim/40 text-xs font-arena tracking-widest">ROUND</p>
@@ -457,10 +566,9 @@ export function HostPage() {
                 {currentQ + 1} <span className="text-cream-dim/30 text-lg">OF {questions.length}</span>
               </h2>
             </div>
-            <TimerRing seconds={timer} maxSeconds={15} />
+            <TimerRing seconds={timer} maxSeconds={10} />
           </div>
 
-          {/* Question */}
           {questions[currentQ] && (
             <div className="stone-card arena-border p-6 md:p-8">
               <h3 className="text-lg md:text-xl font-semibold text-cream leading-relaxed mb-6">
@@ -476,7 +584,6 @@ export function HostPage() {
                 ))}
               </div>
 
-              {/* Host sees the answer */}
               <div className="mt-4 pt-4 border-t border-arena-border">
                 <p className="text-arena-green/80 text-xs font-arena tracking-wider">
                   CORRECT: <span className="text-arena-green font-bold">{questions[currentQ].answer}</span> — {questions[currentQ].options[questions[currentQ].answer]}
@@ -485,7 +592,6 @@ export function HostPage() {
             </div>
           )}
 
-          {/* Answers received */}
           <div className="stone-card p-4 flex items-center justify-between">
             <span className="text-cream-dim/40 text-xs font-arena tracking-wider">ANSWERS RECEIVED</span>
             <span className="text-gold font-bold">
@@ -493,11 +599,11 @@ export function HostPage() {
             </span>
           </div>
 
-          {error && <p className="text-arena-red text-sm text-center">{error}</p>}
+          <div className="text-center">
+            <p className="text-cream-dim/30 text-xs font-arena tracking-wider animate-pulse">QUESTIONS AUTO-ADVANCE EVERY 10 SECONDS</p>
+          </div>
 
-          <button onClick={handleNextQuestion} className="btn-gold w-full text-lg py-4">
-            {currentQ < questions.length - 1 ? "NEXT ROUND" : "END BATTLE — PAY WINNERS"}
-          </button>
+          {error && <p className="text-arena-red text-sm text-center">{error}</p>}
         </div>
       ) : (
         /* ── RESULTS PHASE ── */
@@ -507,7 +613,6 @@ export function HostPage() {
             <p className="text-cream-dim/50 text-sm">Champions have been decided</p>
           </div>
 
-          {/* Podium */}
           <Podium
             entries={leaderboard.slice(0, 3).map((entry, i) => ({
               address: entry.email,
@@ -519,7 +624,6 @@ export function HostPage() {
             }))}
           />
 
-          {/* Full leaderboard */}
           {leaderboard.length > 3 && (
             <div className="stone-card p-4 space-y-2">
               {leaderboard.slice(3).map((entry, i) => (
@@ -534,13 +638,7 @@ export function HostPage() {
             </div>
           )}
 
-          {/* Payout button — host triggers once winners claim wallets */}
-          {!payoutTxHash && (
-            <button onClick={handlePayout} disabled={paying} className="btn-gold w-full py-4">
-              {paying ? "PAYING ON MONAD..." : "PAY WINNERS ON-CHAIN"}
-            </button>
-          )}
-
+          {/* Auto-payout status */}
           {paying && (
             <div className="stone-card arena-border p-6 text-center">
               <div className="animate-spin w-10 h-10 border-3 border-gold border-t-transparent rounded-full mx-auto mb-4" />
@@ -548,7 +646,14 @@ export function HostPage() {
             </div>
           )}
 
-          {/* Tx Hash */}
+          {!payoutTxHash && !paying && (
+            <div className="stone-card arena-border p-6 text-center">
+              <div className="w-8 h-8 border-3 border-gold/40 border-t-gold rounded-full animate-spin mx-auto mb-4" />
+              <p className="text-cream-dim/60 text-sm font-arena tracking-wider">WAITING FOR WINNERS TO CONNECT WALLETS...</p>
+              <p className="text-cream-dim/30 text-xs mt-2">Payment triggers automatically once all winners claim</p>
+            </div>
+          )}
+
           {payoutTxHash && (
             <div className="stone-card arena-border p-6 text-center">
               <p className="text-arena-green font-arena text-sm tracking-wider mb-2">PAID ON MONAD — INSTANTLY</p>
@@ -565,7 +670,7 @@ export function HostPage() {
 
           {error && <p className="text-arena-red text-sm text-center">{error}</p>}
 
-          <button onClick={() => { setPhase("setup"); setGameId(null); setQuestions([]); setLeaderboard([]); setPayouts([]); setPayoutTxHash(null); }} className="btn-gold w-full py-4">
+          <button onClick={() => { setPhase("setup"); setGameId(null); setQuestions([]); setLeaderboard([]); setPayouts([]); setPayoutTxHash(null); payoutTriggered.current = false; }} className="btn-gold w-full py-4">
             NEW ARENA
           </button>
         </div>

@@ -18,6 +18,7 @@ export const api = {
     prizePool: string;
     sharePercentages: number[];
     questionCount: number;
+    customQuestions?: { question: string; options: { A: string; B: string; C: string; D: string }; answer: string }[];
   }) => request("/games", { method: "POST", body: JSON.stringify(body) }),
 
   getGame: (id: string, playerEmail?: string) =>
@@ -45,4 +46,6 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ email, walletAddress }),
     }),
+
+  getWinners: (id: string) => request(`/games/${id}/winners`),
 };

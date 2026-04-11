@@ -67,7 +67,7 @@ export function PlayerPage() {
             setLastQuestionIndex(q.index);
             setSelectedAnswer(null);
             setAnswerResult(null);
-            setTimer(15);
+            setTimer(10);
           }
         }
         if (data.phase === "finished" && phase !== "results") {
@@ -91,10 +91,10 @@ export function PlayerPage() {
   // Countdown
   useEffect(() => {
     if (phase !== "playing" || !currentQuestion) return;
-    setTimer(15);
+    setTimer(10);
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
-      setTimer((prev) => { if (prev <= 1) { clearInterval(timerRef.current!); return 0; } return prev - 1; });
+      setTimer((prev) => { if (prev <= 0) { clearInterval(timerRef.current!); return 0; } return prev - 1; });
     }, 1000);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [phase, currentQuestion?.index]);
@@ -245,7 +245,7 @@ export function PlayerPage() {
               </h2>
               <p className="text-gold/40 text-xs mt-1">Score: {score}</p>
             </div>
-            <TimerRing seconds={timer} maxSeconds={15} size={90} />
+            <TimerRing seconds={timer} maxSeconds={10} size={90} />
           </div>
 
           {currentQuestion ? (

@@ -13,23 +13,65 @@ import {
   serializeGameForPlayer,
   getLeaderboard,
 } from "./store";
-import { GameSession, PlayerState } from "./types";
+import type { GameSession, PlayerState, TriviaQuestion } from "./types";
+
+const QUESTION_TIME_MS = 10_000; // 10 seconds per question
+const QUESTION_GAP_MS = 3_000;   // 3 seconds between questions (show answer)
 
 const router = Router();
+
+/** Auto-advance logic: call on every poll to tick the game forward */
+function tickGame(game: GameSession): void {
+  if (game.phase !== "active") return;
+  if (!game.questionStartedAt) return;
+
+  const elapsed = Date.now() - game.questionStartedAt;
+  const totalSlot = QUESTION_TIME_MS + QUESTION_GAP_MS; // 13s per question slot
+
+  if (elapsed >= totalSlot) {
+    // Time to move to next question
+    const nextQ = game.currentQuestion + 1;
+    if (nextQ >= game.questions.length) {
+      // Game over
+      game.phase = "finished";
+      game.currentQuestion = game.questions.length;
+      game.questionStartedAt = null;
+    } else {
+      game.currentQuestion = nextQ;
+      game.questionStartedAt = Date.now();
+    }
+  }
+}
 
 // ── POST /api/games — Host creates a game session ───────────────────
 router.post("/games", async (req: Request, res: Response) => {
   try {
-    const { gameId, host, topic, prizePool, sharePercentages, questionCount } = req.body;
+    const { gameId, host, topic, prizePool, sharePercentages, questionCount, customQuestions } = req.body;
 
     if (!gameId || !host || !topic) {
       res.status(400).json({ error: "gameId, host, and topic are required" });
       return;
     }
 
-    // Generate questions via Groq
-    const count = questionCount || 3;
-    const questions = await generateQuestions(topic, count);
+    let questions: TriviaQuestion[];
+
+    if (customQuestions && Array.isArray(customQuestions) && customQuestions.length > 0) {
+      // Validate custom questions
+      questions = customQuestions.map((q: any) => {
+        if (!q.question || !q.options || !q.answer) {
+          throw new Error("Each question needs: question, options {A,B,C,D}, answer");
+        }
+        return {
+          question: q.question,
+          options: { A: q.options.A, B: q.options.B, C: q.options.C, D: q.options.D },
+          answer: q.answer,
+        };
+      });
+    } else {
+      // Generate questions via Groq
+      const count = questionCount || 3;
+      questions = await generateQuestions(topic, count);
+    }
 
     const session: GameSession = {
       id: String(gameId),
@@ -71,6 +113,9 @@ router.get("/games/:id", (req: Request, res: Response) => {
     res.status(404).json({ error: "Game not found" });
     return;
   }
+
+  // Auto-advance questions based on timer
+  tickGame(game);
 
   const playerEmail = req.query.player as string | undefined;
   res.json(serializeGameForPlayer(game, playerEmail));
@@ -152,6 +197,9 @@ router.post("/games/:id/answer", (req: Request, res: Response) => {
     return;
   }
 
+  // Tick game forward in case timer expired
+  tickGame(game);
+
   if (game.phase !== "active") {
     res.status(400).json({ error: "Game is not active" });
     return;
@@ -180,7 +228,10 @@ router.post("/games/:id/answer", (req: Request, res: Response) => {
     return;
   }
 
-  const timeTaken = game.questionStartedAt ? Date.now() - game.questionStartedAt : 15000;
+  const timeTaken = game.questionStartedAt ? Date.now() - game.questionStartedAt : QUESTION_TIME_MS;
+
+  // Only count if answered within time limit
+  const withinTime = timeTaken <= QUESTION_TIME_MS;
 
   player.answers.push({
     questionIndex,
@@ -188,7 +239,7 @@ router.post("/games/:id/answer", (req: Request, res: Response) => {
     timestamp: timeTaken,
   });
 
-  const correct = game.questions[questionIndex].answer === answer;
+  const correct = withinTime && game.questions[questionIndex].answer === answer;
   if (correct) {
     player.score += 1;
   }
@@ -200,42 +251,6 @@ router.post("/games/:id/answer", (req: Request, res: Response) => {
     correctAnswer: game.questions[questionIndex].answer,
     score: player.score,
   });
-});
-
-// ── POST /api/games/:id/next — Host advances to next question ──────
-router.post("/games/:id/next", (req: Request, res: Response) => {
-  const game = getGameSession(paramId(req));
-  if (!game) {
-    res.status(404).json({ error: "Game not found" });
-    return;
-  }
-
-  const { host } = req.body;
-  if (!host || host.toLowerCase() !== game.host) {
-    res.status(403).json({ error: "Only host can advance questions" });
-    return;
-  }
-
-  if (game.phase !== "active") {
-    res.status(400).json({ error: "Game is not active" });
-    return;
-  }
-
-  const nextQ = game.currentQuestion + 1;
-  if (nextQ >= game.questions.length) {
-    game.phase = "finished";
-    game.currentQuestion = game.questions.length;
-    game.questionStartedAt = null;
-
-    const leaderboard = getLeaderboard(game);
-    res.json({ success: true, phase: "finished", leaderboard });
-    return;
-  }
-
-  game.currentQuestion = nextQ;
-  game.questionStartedAt = Date.now();
-
-  res.json({ success: true, currentQuestion: nextQ, totalQuestions: game.questions.length });
 });
 
 // ── GET /api/games/:id/leaderboard — Get final scores ──────────────
@@ -285,7 +300,37 @@ router.post("/games/:id/claim", (req: Request, res: Response) => {
   }
 
   player.walletAddress = walletAddress;
-  res.json({ success: true, rank: rank + 1 });
+
+  // Return all winner wallet statuses so host can auto-pay
+  const winnerWallets = leaderboard
+    .slice(0, game.sharePercentages.length)
+    .map((e) => {
+      const p = game.players.get(e.email);
+      return { email: e.email, walletAddress: p?.walletAddress || null, rank: e.rank };
+    });
+
+  res.json({ success: true, rank: rank + 1, winnerWallets });
+});
+
+// ── GET /api/games/:id/winners — Get winner wallet claim status ─────
+router.get("/games/:id/winners", (req: Request, res: Response) => {
+  const game = getGameSession(paramId(req));
+  if (!game) {
+    res.status(404).json({ error: "Game not found" });
+    return;
+  }
+
+  const leaderboard = getLeaderboard(game);
+  const winners = leaderboard
+    .slice(0, game.sharePercentages.length)
+    .map((e) => {
+      const p = game.players.get(e.email);
+      return { email: e.email, walletAddress: p?.walletAddress || null, rank: e.rank, score: e.score };
+    });
+
+  const allClaimed = winners.every((w) => w.walletAddress !== null);
+
+  res.json({ winners, allClaimed, sharePercentages: game.sharePercentages, prizePool: game.prizePool });
 });
 
 // ── GET /api/games/:id/questions — Host gets questions with answers ─
