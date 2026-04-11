@@ -80,7 +80,7 @@ export function HostPage() {
   const [gameId, setGameId] = useState<string | null>(saved.gameId || null);
   const [questions, setQuestions] = useState<any[]>(saved.questions || []);
   const [currentQ, setCurrentQ] = useState(0);
-  const [timer, setTimer] = useState(10);
+  const [timer, setTimer] = useState(7);
   const [gameData, setGameData] = useState<any>(null);
 
   // Results
@@ -167,7 +167,7 @@ export function HostPage() {
     const updateTimer = () => {
       if (gameData?.currentQuestion?.startedAt) {
         const elapsed = (Date.now() - gameData.currentQuestion.startedAt) / 1000;
-        const remaining = Math.max(0, 10 - Math.floor(elapsed));
+        const remaining = Math.max(0, 7 - Math.floor(elapsed));
         setTimer(remaining);
       }
     };
@@ -616,7 +616,7 @@ export function HostPage() {
                 {currentQ + 1} <span className="text-cream-dim/30 text-lg">OF {questions.length}</span>
               </h2>
             </div>
-            <TimerRing seconds={timer} maxSeconds={10} />
+            <TimerRing seconds={timer} maxSeconds={7} />
           </div>
 
           {questions[currentQ] && (
@@ -650,7 +650,7 @@ export function HostPage() {
           </div>
 
           <div className="text-center">
-            <p className="text-cream-dim/30 text-xs font-arena tracking-wider animate-pulse">QUESTIONS AUTO-ADVANCE EVERY 10 SECONDS</p>
+            <p className="text-cream-dim/30 text-xs font-arena tracking-wider animate-pulse">QUESTIONS AUTO-ADVANCE EVERY 7 SECONDS</p>
           </div>
 
           {error && <p className="text-arena-red text-sm text-center">{error}</p>}

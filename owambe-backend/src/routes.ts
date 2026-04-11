@@ -15,7 +15,7 @@ import {
 } from "./store";
 import type { GameSession, PlayerState, TriviaQuestion } from "./types";
 
-const QUESTION_TIME_MS = 10_000; // 10 seconds per question
+const QUESTION_TIME_MS = 7_000; // 7 seconds per question
 const QUESTION_GAP_MS = 3_000;   // 3 seconds between questions (show answer)
 
 const router = Router();
