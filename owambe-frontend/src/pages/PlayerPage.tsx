@@ -69,6 +69,8 @@ export function PlayerPage() {
   const [claiming, setClaiming] = useState(false);
   const [claimed, setClaimed] = useState(saved.claimed || false);
   const [payoutReceived, setPayoutReceived] = useState(false);
+  const [manualWallet, setManualWallet] = useState("");
+  const [claimedAddress, setClaimedAddress] = useState("");
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -175,12 +177,35 @@ export function PlayerPage() {
     }
   };
 
-  const handleClaimPrize = async () => {
+  const isValidAddress = (addr: string) => /^0x[a-fA-F0-9]{40}$/.test(addr.trim());
+
+  const handleClaimWithWallet = async () => {
     if (!gameIdParam || !email || !wallet.address) return;
     setClaiming(true);
     setError(null);
     try {
       await api.claimPrize(gameIdParam, email, wallet.address);
+      setClaimedAddress(wallet.address);
+      setClaimed(true);
+    } catch (err: any) {
+      setError(err.message || "Failed to claim");
+    } finally {
+      setClaiming(false);
+    }
+  };
+
+  const handleClaimWithManual = async () => {
+    if (!gameIdParam || !email) return;
+    const addr = manualWallet.trim();
+    if (!isValidAddress(addr)) {
+      setError("Enter a valid wallet address (0x...)");
+      return;
+    }
+    setClaiming(true);
+    setError(null);
+    try {
+      await api.claimPrize(gameIdParam, email, addr);
+      setClaimedAddress(addr);
       setClaimed(true);
     } catch (err: any) {
       setError(err.message || "Failed to claim");
@@ -385,19 +410,58 @@ export function PlayerPage() {
 
               {/* Winner claim section */}
               {isWinner && !claimed && (
-                <div className="stone-card arena-border p-6 text-center bg-gold/5">
-                  <p className="font-arena text-gold text-lg tracking-wider mb-2">YOU ARE A CHAMPION</p>
-                  <p className="text-cream-dim/60 text-sm mb-4">Connect your wallet to receive your winnings</p>
+                <div className="stone-card arena-border p-6 bg-gold/5 space-y-4">
+                  <div className="text-center">
+                    <p className="font-arena text-gold text-lg tracking-wider mb-1">YOU ARE A CHAMPION</p>
+                    <p className="text-cream-dim/60 text-sm">Submit your wallet address to receive your winnings</p>
+                  </div>
+
+                  {/* Option 1: Paste address (works everywhere including mobile) */}
+                  <div>
+                    <label className="block text-cream-dim/40 text-xs font-arena tracking-wider mb-2">WALLET ADDRESS</label>
+                    <input
+                      type="text"
+                      value={manualWallet}
+                      onChange={(e) => setManualWallet(e.target.value)}
+                      placeholder="0x..."
+                      className="w-full bg-arena-stone border border-arena-border rounded-lg px-4 py-3 text-cream font-mono text-sm placeholder-cream/20 focus:outline-none focus:border-gold/50 transition-colors"
+                    />
+                  </div>
+
+                  <button
+                    onClick={handleClaimWithManual}
+                    disabled={claiming || !manualWallet.trim()}
+                    className="btn-gold w-full"
+                  >
+                    {claiming ? "CLAIMING..." : "CLAIM PRIZE"}
+                  </button>
+
+                  {/* Option 2: Connect wallet (desktop with MetaMask) */}
+                  <div className="relative flex items-center gap-3">
+                    <div className="flex-1 h-px bg-arena-border" />
+                    <span className="text-cream-dim/20 text-xs font-arena tracking-wider">OR</span>
+                    <div className="flex-1 h-px bg-arena-border" />
+                  </div>
 
                   {!wallet.address ? (
-                    <button onClick={wallet.connect} disabled={wallet.connecting} className="btn-gold w-full">
-                      {wallet.connecting ? "CONNECTING..." : "CONNECT WALLET TO CLAIM"}
+                    <button
+                      onClick={wallet.connect}
+                      disabled={wallet.connecting}
+                      className="w-full py-3 rounded-lg border border-arena-border text-cream-dim/50 text-sm font-arena tracking-wider hover:border-gold/30 hover:text-cream-dim transition-all cursor-pointer"
+                    >
+                      {wallet.connecting ? "CONNECTING..." : "CONNECT WALLET INSTEAD"}
                     </button>
                   ) : (
-                    <button onClick={handleClaimPrize} disabled={claiming} className="btn-gold w-full">
-                      {claiming ? "CLAIMING..." : "CLAIM PRIZE"}
+                    <button
+                      onClick={handleClaimWithWallet}
+                      disabled={claiming}
+                      className="w-full py-3 rounded-lg border border-gold/30 text-gold text-sm font-arena tracking-wider hover:bg-gold/10 transition-all cursor-pointer"
+                    >
+                      {claiming ? "CLAIMING..." : `CLAIM WITH ${wallet.address.slice(0, 6)}...${wallet.address.slice(-4)}`}
                     </button>
                   )}
+
+                  {error && <p className="text-arena-red text-sm text-center">{error}</p>}
                 </div>
               )}
 
@@ -406,7 +470,7 @@ export function PlayerPage() {
                   <div className="w-8 h-8 border-3 border-gold/40 border-t-gold rounded-full animate-spin mx-auto mb-4" />
                   <p className="font-arena text-gold text-lg tracking-wider">YOUR WINNINGS ARE ON THE WAY</p>
                   <p className="text-cream-dim/60 text-sm mt-1">Sending to your wallet now...</p>
-                  <p className="text-cream-dim/30 text-xs font-mono mt-2">{wallet.address}</p>
+                  <p className="text-cream-dim/30 text-xs font-mono mt-2">{claimedAddress}</p>
                 </div>
               )}
 
@@ -414,7 +478,7 @@ export function PlayerPage() {
                 <div className="stone-card arena-border p-6 text-center bg-arena-green/5">
                   <p className="font-arena text-arena-green text-lg tracking-wider">WINNINGS SENT</p>
                   <p className="text-cream-dim/60 text-sm mt-1">Check your wallet — your MON has arrived</p>
-                  <p className="text-cream-dim/30 text-xs font-mono mt-2">{wallet.address}</p>
+                  <p className="text-cream-dim/30 text-xs font-mono mt-2">{claimedAddress}</p>
                 </div>
               )}
 
