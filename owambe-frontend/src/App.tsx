@@ -78,7 +78,7 @@ function LandingPage() {
 
         {/* Tagline */}
         <p
-          className={`text-cream-dim/60 text-lg md:text-xl font-arena tracking-[0.25em] mb-2 transition-all duration-1000 delay-400 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
+          className={`text-white/80 text-lg md:text-xl font-arena tracking-[0.25em] mb-2 transition-all duration-1000 delay-400 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
         >
           ON-CHAIN PARTY TRIVIA
         </p>
@@ -91,7 +91,7 @@ function LandingPage() {
         {/* Escrow badge */}
         <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full border border-gold/20 bg-gold/5 mb-12 transition-all duration-1000 delay-700 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
           <div className="w-2 h-2 rounded-full bg-arena-green animate-pulse" />
-          <span className="text-cream-dim/60 text-xs font-arena tracking-wider">PRIZE POOL LOCKED IN SMART CONTRACT</span>
+          <span className="text-white/80 text-xs font-arena tracking-wider">PRIZE POOL LOCKED IN SMART CONTRACT</span>
         </div>
 
         {/* CTA Buttons */}
@@ -110,7 +110,7 @@ function LandingPage() {
 
         {/* Scroll hint */}
         <div className={`absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 transition-all duration-1000 delay-1000 ${visible ? "opacity-100" : "opacity-0"}`}>
-          <span className="text-cream-dim/20 text-xs font-arena tracking-widest">SCROLL</span>
+          <span className="text-white/50 text-xs font-arena tracking-widest">SCROLL</span>
           <div className="w-px h-8 bg-linear-to-b from-gold/30 to-transparent animate-pulse" />
         </div>
       </div>
@@ -135,7 +135,7 @@ function LandingPage() {
               </div>
               <span className="text-gold font-arena text-sm tracking-wider">I. CREATE</span>
             </div>
-            <p className="text-cream-dim/50 text-sm leading-relaxed">
+            <p className="text-white text-sm leading-relaxed">
               Speak your topic or type it. AI forges the questions. Fund the prize pool in MON — it's locked in escrow the moment you create.
             </p>
           </div>
@@ -149,7 +149,7 @@ function LandingPage() {
               </div>
               <span className="text-gold font-arena text-sm tracking-wider">II. BATTLE</span>
             </div>
-            <p className="text-cream-dim/50 text-sm leading-relaxed">
+            <p className="text-white text-sm leading-relaxed">
               Players scan a QR code and join with just an email. No wallet needed. 7-second rounds. Pure speed and knowledge.
             </p>
           </div>
@@ -163,7 +163,7 @@ function LandingPage() {
               </div>
               <span className="text-gold font-arena text-sm tracking-wider">III. VICTORY</span>
             </div>
-            <p className="text-cream-dim/50 text-sm leading-relaxed">
+            <p className="text-white text-sm leading-relaxed">
               Winners connect a wallet and get paid instantly on Monad. The smart contract releases the funds. No middleman. No delay. No ghosting.
             </p>
           </div>
@@ -175,10 +175,10 @@ function LandingPage() {
           <div className="relative">
             <p className="text-gold/40 text-xs font-arena tracking-[0.5em] mb-3">WHY WE BUILT THIS</p>
             <h3 className="font-arena text-2xl text-gold tracking-wider mb-6">WE'VE BEEN BURNED BEFORE</h3>
-            <p className="text-cream-dim/50 text-base leading-relaxed mb-4">
+            <p className="text-white text-base leading-relaxed mb-4">
               We've won competitions, topped leaderboards, put in the work — and never seen a dime. Organizers ghost. Payments "come next week." Promises evaporate.
             </p>
-            <p className="text-cream-dim/50 text-base leading-relaxed mb-6">
+            <p className="text-white text-base leading-relaxed mb-6">
               Owambe fixes this with code, not promises. The prize pool is locked in a smart contract the moment the game is created. The host can't take it back. When you win, the contract pays you directly. That's it.
             </p>
             <div className="flex flex-wrap gap-4">
@@ -202,28 +202,28 @@ function LandingPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-20">
           <div className="stone-card p-6 text-center">
             <p className="font-arena text-3xl text-gold mb-1"><AnimatedCounter target="7" suffix="s" /></p>
-            <p className="text-cream-dim/30 text-xs font-arena tracking-wider">PER ROUND</p>
+            <p className="text-white/60 text-xs font-arena tracking-wider">PER ROUND</p>
           </div>
           <div className="stone-card p-6 text-center">
             <p className="font-arena text-3xl text-gold mb-1"><AnimatedCounter target="0" suffix=" GAS" /></p>
-            <p className="text-cream-dim/30 text-xs font-arena tracking-wider">FOR PLAYERS</p>
+            <p className="text-white/60 text-xs font-arena tracking-wider">FOR PLAYERS</p>
           </div>
           <div className="stone-card p-6 text-center">
             <p className="font-arena text-3xl text-gold mb-1"><AnimatedCounter target="2" /></p>
-            <p className="text-cream-dim/30 text-xs font-arena tracking-wider">ON-CHAIN TXS</p>
+            <p className="text-white/60 text-xs font-arena tracking-wider">ON-CHAIN TXS</p>
           </div>
           <div className="stone-card p-6 text-center">
             <p className="font-arena text-3xl text-arena-green mb-1">100%</p>
-            <p className="text-cream-dim/30 text-xs font-arena tracking-wider">PAID OUT</p>
+            <p className="text-white/60 text-xs font-arena tracking-wider">PAID OUT</p>
           </div>
         </div>
 
         {/* Tech badges */}
         <div className="text-center mb-12">
-          <p className="text-cream-dim/20 text-xs font-arena tracking-[0.4em] mb-6">POWERED BY</p>
+          <p className="text-white/50 text-xs font-arena tracking-[0.4em] mb-6">POWERED BY</p>
           <div className="flex flex-wrap justify-center gap-3">
             {["MONAD", "SOLIDITY", "REACT", "GROQ AI", "ETHERS.JS"].map((tech) => (
-              <span key={tech} className="px-4 py-2 rounded-lg border border-arena-border text-cream-dim/30 text-xs font-arena tracking-wider hover:border-gold/20 hover:text-cream-dim/50 transition-all">
+              <span key={tech} className="px-4 py-2 rounded-lg border border-arena-border text-white/60 text-xs font-arena tracking-wider hover:border-gold/20 hover:text-white transition-all">
                 {tech}
               </span>
             ))}
@@ -232,14 +232,14 @@ function LandingPage() {
 
         {/* Footer */}
         <div className="flex flex-col items-center gap-4 pt-8 border-t border-arena-border/50">
-          <div className="flex items-center gap-3 text-cream-dim/20 text-xs">
+          <div className="flex items-center gap-3 text-white/50 text-xs">
             <div className="w-8 h-px bg-cream-dim/10" />
             <span className="font-arena tracking-wider">LATTICE TEAM</span>
             <span className="text-gold/20">|</span>
             <span className="font-arena tracking-wider">MONAD BLITZ LAGOS 2026</span>
             <div className="w-8 h-px bg-cream-dim/10" />
           </div>
-          <p className="text-cream-dim/15 text-xs italic">where the party meets the chain</p>
+          <p className="text-white/40 text-xs italic">where the party meets the chain</p>
         </div>
       </div>
     </div>

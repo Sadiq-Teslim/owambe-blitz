@@ -326,7 +326,7 @@ export function HostPage() {
         <div className="flex flex-col items-center justify-center min-h-[60vh] animate-fade-up">
           <div className="stone-card arena-border p-10 text-center max-w-md">
             <h2 className="font-arena text-2xl text-gold mb-3 tracking-wider">HOST THE ARENA</h2>
-            <p className="text-cream-dim/60 text-sm mb-6">Connect your wallet to create a trivia game and fund the prize pool.</p>
+            <p className="text-white/80 text-sm mb-6">Connect your wallet to create a trivia game and fund the prize pool.</p>
             <button onClick={wallet.connect} disabled={wallet.connecting} className="btn-gold w-full">
               {wallet.connecting ? "CONNECTING..." : "CONNECT WALLET"}
             </button>
@@ -337,7 +337,7 @@ export function HostPage() {
         <div className="animate-fade-up space-y-6">
           <div className="text-center mb-8">
             <h2 className="font-arena text-3xl text-gold tracking-wider mb-1">CREATE YOUR ARENA</h2>
-            <p className="text-cream-dim/50 text-sm">Speak your game into existence, or type it out</p>
+            <p className="text-white text-sm">Speak your game into existence, or type it out</p>
           </div>
 
           {/* Mode toggle */}
@@ -345,7 +345,7 @@ export function HostPage() {
             <button
               onClick={() => setInputMode("voice")}
               className={`px-4 py-2 rounded-lg text-sm font-arena tracking-wider transition-all cursor-pointer ${
-                inputMode === "voice" ? "bg-gold/15 text-gold border border-gold/30" : "text-cream-dim/40 border border-transparent hover:text-cream-dim"
+                inputMode === "voice" ? "bg-gold/15 text-gold border border-gold/30" : "text-white/70 border border-transparent hover:text-white"
               }`}
             >
               VOICE
@@ -353,7 +353,7 @@ export function HostPage() {
             <button
               onClick={() => setInputMode("manual")}
               className={`px-4 py-2 rounded-lg text-sm font-arena tracking-wider transition-all cursor-pointer ${
-                inputMode === "manual" ? "bg-gold/15 text-gold border border-gold/30" : "text-cream-dim/40 border border-transparent hover:text-cream-dim"
+                inputMode === "manual" ? "bg-gold/15 text-gold border border-gold/30" : "text-white/70 border border-transparent hover:text-white"
               }`}
             >
               MANUAL
@@ -368,7 +368,7 @@ export function HostPage() {
             <div className="stone-card arena-border p-6 space-y-5 stagger-children">
               {/* Topic */}
               <div>
-                <label className="block text-cream-dim/50 text-xs font-arena tracking-wider mb-2">TOPIC</label>
+                <label className="block text-white text-xs font-arena tracking-wider mb-2">TOPIC</label>
                 <input
                   type="text"
                   value={topic}
@@ -380,7 +380,7 @@ export function HostPage() {
 
               {/* Prize Pool */}
               <div>
-                <label className="block text-cream-dim/50 text-xs font-arena tracking-wider mb-2">PRIZE POOL (MON)</label>
+                <label className="block text-white text-xs font-arena tracking-wider mb-2">PRIZE POOL (MON)</label>
                 <input
                   type="number"
                   value={prizePool}
@@ -393,14 +393,14 @@ export function HostPage() {
 
               {/* Question source toggle */}
               <div>
-                <label className="block text-cream-dim/50 text-xs font-arena tracking-wider mb-2">QUESTIONS</label>
+                <label className="block text-white text-xs font-arena tracking-wider mb-2">QUESTIONS</label>
                 <div className="flex gap-2 mb-3">
                   <button
                     onClick={() => setQuestionMode("ai")}
                     className={`flex-1 py-2 rounded-lg text-xs font-arena tracking-wider transition-all cursor-pointer ${
                       questionMode === "ai"
                         ? "bg-gold/15 text-gold border border-gold/40"
-                        : "bg-arena-stone border border-arena-border text-cream-dim/40"
+                        : "bg-arena-stone border border-arena-border text-white/70"
                     }`}
                   >
                     AI GENERATED
@@ -410,7 +410,7 @@ export function HostPage() {
                     className={`flex-1 py-2 rounded-lg text-xs font-arena tracking-wider transition-all cursor-pointer ${
                       questionMode === "custom"
                         ? "bg-gold/15 text-gold border border-gold/40"
-                        : "bg-arena-stone border border-arena-border text-cream-dim/40"
+                        : "bg-arena-stone border border-arena-border text-white/70"
                     }`}
                   >
                     WRITE YOUR OWN
@@ -421,7 +421,7 @@ export function HostPage() {
               {questionMode === "ai" ? (
                 /* AI question count */
                 <div>
-                  <label className="block text-cream-dim/50 text-xs font-arena tracking-wider mb-2">NUMBER OF ROUNDS</label>
+                  <label className="block text-white text-xs font-arena tracking-wider mb-2">NUMBER OF ROUNDS</label>
                   <input
                     type="number"
                     value={questionCount}
@@ -452,7 +452,7 @@ export function HostPage() {
                           <button
                             onClick={() => updateCustomQuestion(i, "answer", key)}
                             className={`w-8 h-8 rounded text-xs font-arena font-bold flex items-center justify-center cursor-pointer transition-all ${
-                              q.answer === key ? "bg-arena-green/20 text-arena-green border border-arena-green/40" : "bg-arena-stone border border-arena-border text-cream-dim/40"
+                              q.answer === key ? "bg-arena-green/20 text-arena-green border border-arena-green/40" : "bg-arena-stone border border-arena-border text-white/70"
                             }`}
                           >
                             {key}
@@ -466,7 +466,7 @@ export function HostPage() {
                           />
                         </div>
                       ))}
-                      <p className="text-cream-dim/30 text-xs">Click a letter to mark it as the correct answer</p>
+                      <p className="text-white/60 text-xs">Click a letter to mark it as the correct answer</p>
                     </div>
                   ))}
                   <button onClick={addCustomQuestion} className="w-full py-3 rounded-lg border border-dashed border-gold/30 text-gold/60 text-sm font-arena tracking-wider hover:border-gold/60 hover:text-gold transition-all cursor-pointer">
@@ -477,14 +477,14 @@ export function HostPage() {
 
               {/* Split */}
               <div>
-                <label className="block text-cream-dim/50 text-xs font-arena tracking-wider mb-2">PRIZE SPLIT</label>
+                <label className="block text-white text-xs font-arena tracking-wider mb-2">PRIZE SPLIT</label>
                 <div className="flex gap-2 mb-2">
                   <button
                     onClick={() => setSplitType("default")}
                     className={`flex-1 py-2 rounded-lg text-xs transition-all cursor-pointer ${
                       splitType === "default"
                         ? "bg-gold/15 text-gold border border-gold/40"
-                        : "bg-arena-stone border border-arena-border text-cream-dim/40"
+                        : "bg-arena-stone border border-arena-border text-white/70"
                     }`}
                   >
                     60 / 30 / 10
@@ -494,7 +494,7 @@ export function HostPage() {
                     className={`flex-1 py-2 rounded-lg text-xs transition-all cursor-pointer ${
                       splitType === "custom"
                         ? "bg-gold/15 text-gold border border-gold/40"
-                        : "bg-arena-stone border border-arena-border text-cream-dim/40"
+                        : "bg-arena-stone border border-arena-border text-white/70"
                     }`}
                   >
                     Custom
@@ -530,16 +530,16 @@ export function HostPage() {
         <div className="animate-gate-open space-y-6">
           <div className="text-center mb-6">
             <h2 className="font-arena text-2xl text-gold tracking-wider mb-1">ARENA #{gameId}</h2>
-            <p className="text-cream-dim/50 text-sm">Warriors are gathering...</p>
+            <p className="text-white text-sm">Warriors are gathering...</p>
           </div>
 
           {/* QR Shield */}
           <div className="stone-card arena-border arch-top p-8 flex flex-col items-center">
-            <p className="text-cream-dim/50 text-xs font-arena tracking-widest mb-4">SCAN TO ENTER — FREE</p>
+            <p className="text-white text-xs font-arena tracking-widest mb-4">SCAN TO ENTER — FREE</p>
             <div className="bg-cream/95 p-4 rounded-xl shadow-[0_0_40px_rgba(212,168,67,0.2)]">
               <QRCodeSVG value={joinUrl} size={180} bgColor="#f5e6c8" fgColor="#0a0a0a" />
             </div>
-            <p className="text-cream-dim/30 text-xs font-mono mt-4 break-all max-w-xs text-center">{joinUrl}</p>
+            <p className="text-white/60 text-xs font-mono mt-4 break-all max-w-xs text-center">{joinUrl}</p>
 
             <div className="flex gap-3 mt-4">
               <button onClick={handleShare} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gold/10 border border-gold/20 text-gold text-sm hover:bg-gold/20 transition-all cursor-pointer">
@@ -551,7 +551,7 @@ export function HostPage() {
               </button>
               <button
                 onClick={() => { navigator.clipboard.writeText(joinUrl); }}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-arena-stone border border-arena-border text-cream-dim/60 text-sm hover:text-cream-dim transition-all cursor-pointer"
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-arena-stone border border-arena-border text-white/80 text-sm hover:text-white transition-all cursor-pointer"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                   <rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
@@ -564,17 +564,17 @@ export function HostPage() {
           {/* Game info */}
           <div className="stone-card p-4 flex justify-around text-center">
             <div>
-              <p className="text-cream-dim/40 text-xs font-arena tracking-wider">PRIZE</p>
+              <p className="text-white/70 text-xs font-arena tracking-wider">PRIZE</p>
               <p className="text-gold font-bold text-lg">{prizePool} MON</p>
             </div>
             <div className="w-px bg-arena-border" />
             <div>
-              <p className="text-cream-dim/40 text-xs font-arena tracking-wider">SPLIT</p>
+              <p className="text-white/70 text-xs font-arena tracking-wider">SPLIT</p>
               <p className="text-cream text-sm">{sharePercentages.join(" / ")}</p>
             </div>
             <div className="w-px bg-arena-border" />
             <div>
-              <p className="text-cream-dim/40 text-xs font-arena tracking-wider">ROUNDS</p>
+              <p className="text-white/70 text-xs font-arena tracking-wider">ROUNDS</p>
               <p className="text-cream text-sm">{questions.length}</p>
             </div>
           </div>
@@ -585,7 +585,7 @@ export function HostPage() {
               GLADIATORS ({playerCount})
             </h3>
             {playerCount === 0 ? (
-              <p className="text-cream-dim/30 text-sm text-center py-4 animate-pulse">
+              <p className="text-white/60 text-sm text-center py-4 animate-pulse">
                 Waiting for warriors to enter...
               </p>
             ) : (
@@ -593,7 +593,7 @@ export function HostPage() {
                 {playerList.map((p: any, i: number) => (
                   <div key={p.email} className="flex items-center gap-3 bg-arena-stone/50 rounded-lg px-4 py-2.5 animate-fade-up" style={{ animationDelay: `${i * 0.1}s` }}>
                     <span className="text-gold/60 font-arena text-xs w-6">{i + 1}.</span>
-                    <span className="text-sm text-cream-dim">{p.email}</span>
+                    <span className="text-sm text-white">{p.email}</span>
                   </div>
                 ))}
               </div>
@@ -611,9 +611,9 @@ export function HostPage() {
         <div className="animate-gate-open space-y-6">
           <div className="flex justify-between items-center">
             <div>
-              <p className="text-cream-dim/40 text-xs font-arena tracking-widest">ROUND</p>
+              <p className="text-white/70 text-xs font-arena tracking-widest">ROUND</p>
               <h2 className="font-arena text-2xl text-gold">
-                {currentQ + 1} <span className="text-cream-dim/30 text-lg">OF {questions.length}</span>
+                {currentQ + 1} <span className="text-white/60 text-lg">OF {questions.length}</span>
               </h2>
             </div>
             <TimerRing seconds={timer} maxSeconds={7} />
@@ -629,7 +629,7 @@ export function HostPage() {
                 {(["A", "B", "C", "D"] as const).map((key) => (
                   <div key={key} className="stone-tablet flex items-center gap-3">
                     <span className="text-gold font-arena font-bold text-lg w-8">{key}</span>
-                    <span className="text-cream-dim">{questions[currentQ].options[key]}</span>
+                    <span className="text-white">{questions[currentQ].options[key]}</span>
                   </div>
                 ))}
               </div>
@@ -643,14 +643,14 @@ export function HostPage() {
           )}
 
           <div className="stone-card p-4 flex items-center justify-between">
-            <span className="text-cream-dim/40 text-xs font-arena tracking-wider">ANSWERS RECEIVED</span>
+            <span className="text-white/70 text-xs font-arena tracking-wider">ANSWERS RECEIVED</span>
             <span className="text-gold font-bold">
               {gameData?.players?.filter((p: any) => p.hasAnswered).length || 0} / {playerCount}
             </span>
           </div>
 
           <div className="text-center">
-            <p className="text-cream-dim/30 text-xs font-arena tracking-wider animate-pulse">QUESTIONS AUTO-ADVANCE EVERY 7 SECONDS</p>
+            <p className="text-white/60 text-xs font-arena tracking-wider animate-pulse">QUESTIONS AUTO-ADVANCE EVERY 7 SECONDS</p>
           </div>
 
           {error && <p className="text-arena-red text-sm text-center">{error}</p>}
@@ -660,7 +660,7 @@ export function HostPage() {
         <div className="animate-fade-up space-y-6">
           <div className="text-center">
             <h2 className="font-arena text-3xl text-gold tracking-wider mb-1">THE ARENA HAS SPOKEN</h2>
-            <p className="text-cream-dim/50 text-sm">Champions have been decided</p>
+            <p className="text-white text-sm">Champions have been decided</p>
           </div>
 
           <Podium
@@ -679,10 +679,10 @@ export function HostPage() {
               {leaderboard.slice(3).map((entry, i) => (
                 <div key={entry.email} className="flex items-center justify-between py-2 px-3 rounded bg-arena-stone/30">
                   <div className="flex items-center gap-3">
-                    <span className="text-cream-dim/30 font-arena text-xs">#{i + 4}</span>
-                    <span className="text-xs text-cream-dim/60">{entry.email}</span>
+                    <span className="text-white/60 font-arena text-xs">#{i + 4}</span>
+                    <span className="text-xs text-white/80">{entry.email}</span>
                   </div>
-                  <span className="text-cream-dim/40 text-sm">{entry.score} pts</span>
+                  <span className="text-white/70 text-sm">{entry.score} pts</span>
                 </div>
               ))}
             </div>
@@ -692,15 +692,15 @@ export function HostPage() {
           {paying && (
             <div className="stone-card arena-border p-6 text-center">
               <div className="animate-spin w-10 h-10 border-3 border-gold border-t-transparent rounded-full mx-auto mb-4" />
-              <p className="text-cream-dim/60 text-sm font-arena tracking-wider">SETTLING ON MONAD...</p>
+              <p className="text-white/80 text-sm font-arena tracking-wider">SETTLING ON MONAD...</p>
             </div>
           )}
 
           {!payoutTxHash && !paying && (
             <div className="stone-card arena-border p-6 text-center">
               <div className="w-8 h-8 border-3 border-gold/40 border-t-gold rounded-full animate-spin mx-auto mb-4" />
-              <p className="text-cream-dim/60 text-sm font-arena tracking-wider">WAITING FOR WINNERS TO CONNECT WALLETS...</p>
-              <p className="text-cream-dim/30 text-xs mt-2">Payment triggers automatically once all winners claim</p>
+              <p className="text-white/80 text-sm font-arena tracking-wider">WAITING FOR WINNERS TO CONNECT WALLETS...</p>
+              <p className="text-white/60 text-xs mt-2">Payment triggers automatically once all winners claim</p>
             </div>
           )}
 
@@ -711,7 +711,7 @@ export function HostPage() {
                 href={`https://testnet.monadexplorer.com/tx/${payoutTxHash}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-cream-dim/40 hover:text-gold text-xs font-mono break-all underline transition-colors"
+                className="text-white/70 hover:text-gold text-xs font-mono break-all underline transition-colors"
               >
                 {payoutTxHash}
               </a>

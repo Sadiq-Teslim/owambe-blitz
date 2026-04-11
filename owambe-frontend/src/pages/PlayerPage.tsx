@@ -219,7 +219,7 @@ export function PlayerPage() {
       <div className="min-h-screen flex items-center justify-center p-4">
         <div className="stone-card arena-border p-10 text-center animate-fade-up">
           <h1 className="font-arena text-3xl text-gold tracking-wider mb-3">OWAMBE</h1>
-          <p className="text-cream-dim/50 text-sm">No game ID. Scan a QR code to enter the arena.</p>
+          <p className="text-white text-sm">No game ID. Scan a QR code to enter the arena.</p>
         </div>
       </div>
     );
@@ -234,7 +234,7 @@ export function PlayerPage() {
           <span className="font-arena text-xl tracking-wider">
             <span className="text-gold">OWA</span><span className="text-cream/60">MBE</span>
           </span>
-          <span className="text-cream-dim/30 text-xs ml-2 font-mono">#{gameIdParam}</span>
+          <span className="text-white/60 text-xs ml-2 font-mono">#{gameIdParam}</span>
         </div>
         {phase === "results" && isWinner && !claimed && (
           <WalletButton
@@ -251,28 +251,28 @@ export function PlayerPage() {
         /* ── JOIN PHASE — email only ── */
         <div className="animate-fade-up space-y-6">
           <div className="text-center mb-6">
-            <p className="text-cream-dim/30 text-xs font-arena tracking-[0.3em] mb-2">A CHALLENGE AWAITS</p>
+            <p className="text-white/60 text-xs font-arena tracking-[0.3em] mb-2">A CHALLENGE AWAITS</p>
             <h2 className="font-arena text-3xl text-gold tracking-wider">ARENA #{gameIdParam}</h2>
           </div>
 
           {gameData && (
             <div className="stone-card arena-border arch-top p-6">
               <div className="text-center mb-6">
-                <p className="text-cream-dim/40 text-xs font-arena tracking-widest mb-1">PRIZE POOL</p>
+                <p className="text-white/70 text-xs font-arena tracking-widest mb-1">PRIZE POOL</p>
                 <p className="text-gold font-bold text-4xl font-arena">{gameData.prizePool} <span className="text-lg">MON</span></p>
               </div>
 
               <div className="grid grid-cols-3 gap-4 text-center border-t border-arena-border pt-4">
                 <div>
-                  <p className="text-cream-dim/30 text-xs">ENTRY</p>
+                  <p className="text-white/60 text-xs">ENTRY</p>
                   <p className="text-arena-green font-bold text-sm">FREE</p>
                 </div>
                 <div>
-                  <p className="text-cream-dim/30 text-xs">WARRIORS</p>
+                  <p className="text-white/60 text-xs">WARRIORS</p>
                   <p className="text-cream font-bold text-sm">{gameData.playerCount}</p>
                 </div>
                 <div>
-                  <p className="text-cream-dim/30 text-xs">SPLIT</p>
+                  <p className="text-white/60 text-xs">SPLIT</p>
                   <p className="text-cream text-xs">{gameData.sharePercentages?.map((s: number) => `${s}%`).join(" / ")}</p>
                 </div>
               </div>
@@ -280,7 +280,7 @@ export function PlayerPage() {
           )}
 
           <div className="stone-card arena-border p-6">
-            <label className="block text-cream-dim/50 text-xs font-arena tracking-wider mb-2">YOUR EMAIL</label>
+            <label className="block text-white text-xs font-arena tracking-wider mb-2">YOUR EMAIL</label>
             <input
               type="email"
               value={email}
@@ -289,7 +289,7 @@ export function PlayerPage() {
               className="w-full bg-arena-stone border border-arena-border rounded-lg px-4 py-3 text-cream placeholder-cream/20 focus:outline-none focus:border-gold/50 transition-colors"
               onKeyDown={(e) => { if (e.key === "Enter") handleJoin(); }}
             />
-            <p className="text-cream-dim/30 text-xs mt-2">No wallet needed to play. Just your email.</p>
+            <p className="text-white/60 text-xs mt-2">No wallet needed to play. Just your email.</p>
           </div>
 
           {error && <p className="text-arena-red text-sm text-center">{error}</p>}
@@ -304,7 +304,7 @@ export function PlayerPage() {
           <div className="stone-card arena-border p-10 text-center max-w-sm">
             <div className="w-12 h-12 border-3 border-gold/40 border-t-gold rounded-full animate-spin mx-auto mb-6" />
             <h2 className="font-arena text-xl text-gold tracking-wider mb-2">YOU ARE IN THE ARENA</h2>
-            <p className="text-cream-dim/40 text-sm animate-pulse">Waiting for the host to begin battle...</p>
+            <p className="text-white/70 text-sm animate-pulse">Waiting for the host to begin battle...</p>
           </div>
         </div>
       ) : phase === "playing" ? (
@@ -312,10 +312,10 @@ export function PlayerPage() {
         <div className="animate-gate-open space-y-6">
           <div className="flex justify-between items-center">
             <div>
-              <p className="text-cream-dim/30 text-xs font-arena tracking-[0.3em]">ROUND</p>
+              <p className="text-white/60 text-xs font-arena tracking-[0.3em]">ROUND</p>
               <h2 className="font-arena text-3xl text-gold">
                 {(currentQuestion?.index ?? 0) + 1}
-                <span className="text-cream-dim/20 text-lg ml-1">/ {currentQuestion?.totalQuestions ?? totalQuestions ?? "?"}</span>
+                <span className="text-white/50 text-lg ml-1">/ {currentQuestion?.totalQuestions ?? totalQuestions ?? "?"}</span>
               </h2>
               <p className="text-gold/40 text-xs mt-1">Score: {score}</p>
             </div>
@@ -353,7 +353,7 @@ export function PlayerPage() {
                         {key}
                       </span>
                       <span className={`${
-                        isCorrect ? "text-arena-green" : isWrong ? "text-arena-red" : "text-cream-dim"
+                        isCorrect ? "text-arena-green" : isWrong ? "text-arena-red" : "text-white"
                       }`}>
                         {currentQuestion.options[key]}
                       </span>
@@ -379,7 +379,7 @@ export function PlayerPage() {
           ) : (
             <div className="stone-card arena-border p-10 text-center">
               <div className="w-8 h-8 border-3 border-gold/40 border-t-gold rounded-full animate-spin mx-auto mb-4" />
-              <p className="text-cream-dim/40 text-sm">Awaiting next round...</p>
+              <p className="text-white/70 text-sm">Awaiting next round...</p>
             </div>
           )}
         </div>
@@ -388,7 +388,7 @@ export function PlayerPage() {
         <div className="animate-fade-up space-y-6">
           <div className="text-center">
             <h2 className="font-arena text-3xl text-gold tracking-wider mb-1">THE ARENA HAS SPOKEN</h2>
-            <p className="text-cream-dim/50 text-sm">
+            <p className="text-white text-sm">
               Your score: <span className="text-gold font-bold">{score}</span> / {totalQuestions ?? currentQuestion?.totalQuestions ?? "?"}
             </p>
           </div>
@@ -413,12 +413,12 @@ export function PlayerPage() {
                 <div className="stone-card arena-border p-6 bg-gold/5 space-y-4">
                   <div className="text-center">
                     <p className="font-arena text-gold text-lg tracking-wider mb-1">YOU ARE A CHAMPION</p>
-                    <p className="text-cream-dim/60 text-sm">Submit your wallet address to receive your winnings</p>
+                    <p className="text-white/80 text-sm">Submit your wallet address to receive your winnings</p>
                   </div>
 
                   {/* Option 1: Paste address (works everywhere including mobile) */}
                   <div>
-                    <label className="block text-cream-dim/40 text-xs font-arena tracking-wider mb-2">WALLET ADDRESS</label>
+                    <label className="block text-white/70 text-xs font-arena tracking-wider mb-2">WALLET ADDRESS</label>
                     <input
                       type="text"
                       value={manualWallet}
@@ -439,7 +439,7 @@ export function PlayerPage() {
                   {/* Option 2: Connect wallet (desktop with MetaMask) */}
                   <div className="relative flex items-center gap-3">
                     <div className="flex-1 h-px bg-arena-border" />
-                    <span className="text-cream-dim/20 text-xs font-arena tracking-wider">OR</span>
+                    <span className="text-white/50 text-xs font-arena tracking-wider">OR</span>
                     <div className="flex-1 h-px bg-arena-border" />
                   </div>
 
@@ -447,7 +447,7 @@ export function PlayerPage() {
                     <button
                       onClick={wallet.connect}
                       disabled={wallet.connecting}
-                      className="w-full py-3 rounded-lg border border-arena-border text-cream-dim/50 text-sm font-arena tracking-wider hover:border-gold/30 hover:text-cream-dim transition-all cursor-pointer"
+                      className="w-full py-3 rounded-lg border border-arena-border text-white text-sm font-arena tracking-wider hover:border-gold/30 hover:text-white transition-all cursor-pointer"
                     >
                       {wallet.connecting ? "CONNECTING..." : "CONNECT WALLET INSTEAD"}
                     </button>
@@ -469,16 +469,16 @@ export function PlayerPage() {
                 <div className="stone-card arena-border p-6 text-center bg-gold/5">
                   <div className="w-8 h-8 border-3 border-gold/40 border-t-gold rounded-full animate-spin mx-auto mb-4" />
                   <p className="font-arena text-gold text-lg tracking-wider">YOUR WINNINGS ARE ON THE WAY</p>
-                  <p className="text-cream-dim/60 text-sm mt-1">Sending to your wallet now...</p>
-                  <p className="text-cream-dim/30 text-xs font-mono mt-2">{claimedAddress}</p>
+                  <p className="text-white/80 text-sm mt-1">Sending to your wallet now...</p>
+                  <p className="text-white/60 text-xs font-mono mt-2">{claimedAddress}</p>
                 </div>
               )}
 
               {claimed && payoutReceived && (
                 <div className="stone-card arena-border p-6 text-center bg-arena-green/5">
                   <p className="font-arena text-arena-green text-lg tracking-wider">WINNINGS SENT</p>
-                  <p className="text-cream-dim/60 text-sm mt-1">Check your wallet — your MON has arrived</p>
-                  <p className="text-cream-dim/30 text-xs font-mono mt-2">{claimedAddress}</p>
+                  <p className="text-white/80 text-sm mt-1">Check your wallet — your MON has arrived</p>
+                  <p className="text-white/60 text-xs font-mono mt-2">{claimedAddress}</p>
                 </div>
               )}
 
@@ -490,13 +490,13 @@ export function PlayerPage() {
                     return (
                       <div key={entry.email} className={`flex items-center justify-between py-2 px-3 rounded ${isMe ? "bg-gold/5 border border-gold/20" : "bg-arena-stone/30"}`}>
                         <div className="flex items-center gap-3">
-                          <span className="text-cream-dim/30 font-arena text-xs">#{i + 4}</span>
-                          <span className="text-xs text-cream-dim/60">
+                          <span className="text-white/60 font-arena text-xs">#{i + 4}</span>
+                          <span className="text-xs text-white/80">
                             {entry.email}
                             {isMe && <span className="text-gold ml-1">(You)</span>}
                           </span>
                         </div>
-                        <span className="text-cream-dim/40 text-sm">{entry.score} pts</span>
+                        <span className="text-white/70 text-sm">{entry.score} pts</span>
                       </div>
                     );
                   })}
