@@ -26,32 +26,69 @@ interface CustomQuestion {
   answer: "A" | "B" | "C" | "D";
 }
 
+const HOST_STORAGE_KEY = "owambe_host_state";
+
+interface HostSavedState {
+  phase: GamePhase;
+  gameId: string | null;
+  questions: any[];
+  topic: string;
+  prizePool: string;
+  splitType: "default" | "custom";
+  customSplits: string;
+  questionCount: number;
+  leaderboard: LeaderboardEntry[];
+  payoutTxHash: string | null;
+  // payouts stored as string amounts (bigint not JSON-serializable)
+  payoutsSerialized: { player: string; amount: string; rank: number }[];
+}
+
+function loadHostState(): Partial<HostSavedState> {
+  try {
+    const raw = localStorage.getItem(HOST_STORAGE_KEY);
+    if (!raw) return {};
+    return JSON.parse(raw);
+  } catch { return {}; }
+}
+
+function saveHostState(state: HostSavedState) {
+  try { localStorage.setItem(HOST_STORAGE_KEY, JSON.stringify(state)); } catch { /* ignore */ }
+}
+
+function clearHostState() {
+  try { localStorage.removeItem(HOST_STORAGE_KEY); } catch { /* ignore */ }
+}
+
 export function HostPage() {
   const wallet = useWallet();
   const contract = useContract(wallet.signer);
 
+  const saved = useRef(loadHostState()).current;
+
   // Setup
-  const [topic, setTopic] = useState("");
-  const [prizePool, setPrizePool] = useState("0.05");
-  const [questionCount, setQuestionCount] = useState(3);
-  const [splitType, setSplitType] = useState<"default" | "custom">("default");
-  const [customSplits, setCustomSplits] = useState("60,30,10");
+  const [topic, setTopic] = useState(saved.topic || "");
+  const [prizePool, setPrizePool] = useState(saved.prizePool || "0.05");
+  const [questionCount, setQuestionCount] = useState(saved.questionCount || 3);
+  const [splitType, setSplitType] = useState<"default" | "custom">(saved.splitType || "default");
+  const [customSplits, setCustomSplits] = useState(saved.customSplits || "60,30,10");
   const [inputMode, setInputMode] = useState<"voice" | "manual">("voice");
   const [questionMode, setQuestionMode] = useState<"ai" | "custom">("ai");
   const [customQuestions, setCustomQuestions] = useState<CustomQuestion[]>([]);
 
   // Game state
-  const [phase, setPhase] = useState<GamePhase>("setup");
-  const [gameId, setGameId] = useState<string | null>(null);
-  const [questions, setQuestions] = useState<any[]>([]);
+  const [phase, setPhase] = useState<GamePhase>(saved.phase || "setup");
+  const [gameId, setGameId] = useState<string | null>(saved.gameId || null);
+  const [questions, setQuestions] = useState<any[]>(saved.questions || []);
   const [currentQ, setCurrentQ] = useState(0);
   const [timer, setTimer] = useState(10);
   const [gameData, setGameData] = useState<any>(null);
 
   // Results
-  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
-  const [payoutTxHash, setPayoutTxHash] = useState<string | null>(null);
-  const [payouts, setPayouts] = useState<{ player: string; amount: bigint; rank: number }[]>([]);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>(saved.leaderboard || []);
+  const [payoutTxHash, setPayoutTxHash] = useState<string | null>(saved.payoutTxHash || null);
+  const [payouts, setPayouts] = useState<{ player: string; amount: bigint; rank: number }[]>(
+    (saved.payoutsSerialized || []).map((p) => ({ ...p, amount: BigInt(p.amount) }))
+  );
   const [showConfetti, setShowConfetti] = useState(false);
 
   // Loading
@@ -60,11 +97,21 @@ export function HostPage() {
   const [error, setError] = useState<string | null>(null);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const payoutTriggered = useRef(false);
+  const payoutTriggered = useRef(!!saved.payoutTxHash);
 
   const sharePercentages = splitType === "default"
     ? [60, 30, 10]
     : customSplits.split(",").map((s) => Number(s.trim()));
+
+  // Persist state to localStorage on key changes
+  useEffect(() => {
+    if (phase === "setup" && !gameId) return; // Don't save empty setup
+    saveHostState({
+      phase, gameId, questions, topic, prizePool, splitType, customSplits,
+      questionCount, leaderboard, payoutTxHash,
+      payoutsSerialized: payouts.map((p) => ({ ...p, amount: p.amount.toString() })),
+    });
+  }, [phase, gameId, questions, topic, prizePool, splitType, customSplits, questionCount, leaderboard, payoutTxHash, payouts]);
 
   // Poll game state — auto-advance is server-side, we just read it
   useEffect(() => {
@@ -670,7 +717,7 @@ export function HostPage() {
 
           {error && <p className="text-arena-red text-sm text-center">{error}</p>}
 
-          <button onClick={() => { setPhase("setup"); setGameId(null); setQuestions([]); setLeaderboard([]); setPayouts([]); setPayoutTxHash(null); payoutTriggered.current = false; }} className="btn-gold w-full py-4">
+          <button onClick={() => { clearHostState(); setPhase("setup"); setGameId(null); setQuestions([]); setLeaderboard([]); setPayouts([]); setPayoutTxHash(null); payoutTriggered.current = false; setTopic(""); setPrizePool("0.05"); }} className="btn-gold w-full py-4">
             NEW ARENA
           </button>
         </div>

@@ -17,14 +17,38 @@ interface CurrentQuestion {
   startedAt: number | null;
 }
 
+interface PlayerSavedState {
+  phase: PlayerPhase;
+  email: string;
+  score: number;
+  isWinner: boolean;
+  claimed: boolean;
+}
+
+function playerStorageKey(gameId: string) { return `owambe_player_${gameId}`; }
+
+function loadPlayerState(gameId: string): Partial<PlayerSavedState> {
+  try {
+    const raw = localStorage.getItem(playerStorageKey(gameId));
+    if (!raw) return {};
+    return JSON.parse(raw);
+  } catch { return {}; }
+}
+
+function savePlayerState(gameId: string, state: PlayerSavedState) {
+  try { localStorage.setItem(playerStorageKey(gameId), JSON.stringify(state)); } catch { /* ignore */ }
+}
+
 export function PlayerPage() {
   const [searchParams] = useSearchParams();
   const gameIdParam = searchParams.get("game");
 
   const wallet = useWallet();
 
-  const [phase, setPhase] = useState<PlayerPhase>("join");
-  const [email, setEmail] = useState("");
+  const saved = useRef(gameIdParam ? loadPlayerState(gameIdParam) : {}).current;
+
+  const [phase, setPhase] = useState<PlayerPhase>(saved.phase || "join");
+  const [email, setEmail] = useState(saved.email || "");
   const [gameData, setGameData] = useState<any>(null);
   const [joining, setJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,16 +57,22 @@ export function PlayerPage() {
   const [lastQuestionIndex, setLastQuestionIndex] = useState(-1);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [answerResult, setAnswerResult] = useState<{ correct: boolean; correctAnswer: string } | null>(null);
-  const [score, setScore] = useState(0);
-  const [timer, setTimer] = useState(15);
+  const [score, setScore] = useState(saved.score || 0);
+  const [timer, setTimer] = useState(10);
 
   const [leaderboard, setLeaderboard] = useState<any>(null);
   const [showConfetti, setShowConfetti] = useState(false);
-  const [isWinner, setIsWinner] = useState(false);
+  const [isWinner, setIsWinner] = useState(saved.isWinner || false);
   const [claiming, setClaiming] = useState(false);
-  const [claimed, setClaimed] = useState(false);
+  const [claimed, setClaimed] = useState(saved.claimed || false);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Persist player state on key changes
+  useEffect(() => {
+    if (!gameIdParam || phase === "join") return;
+    savePlayerState(gameIdParam, { phase, email, score, isWinner, claimed });
+  }, [gameIdParam, phase, email, score, isWinner, claimed]);
 
   // Load game info once
   useEffect(() => {
