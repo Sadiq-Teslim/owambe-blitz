@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
-import { ethers } from "ethers";
 import { useWallet } from "../hooks/useWallet";
 import { useContract } from "../hooks/useContract";
 import { WalletButton } from "../components/WalletButton";
