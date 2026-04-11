@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+@theme {
+  --color-purple-950: #0a0015;
+  --color-purple-900: #1a0033;
+  --color-purple-800: #2d0056;
+  --color-purple-700: #4a0080;
+  --color-purple-600: #6b21a8;
+  --color-purple-500: #8b5cf6;
+  --color-purple-400: #a78bfa;
+  --color-purple-300: #c4b5fd;
+  --color-gold: #f59e0b;
+  --color-gold-light: #fbbf24;
+}
+
+body {
+  margin: 0;
+  background: linear-gradient(135deg, var(--color-purple-950) 0%, var(--color-purple-900) 50%, #1e0040 100%);
+  min-height: 100vh;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  color: white;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(139, 92, 246, 0.3); }
+  50% { box-shadow: 0 0 40px rgba(139, 92, 246, 0.6); }
+}
+
+@keyframes countdown-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.animate-countdown {
+  animation: countdown-pulse 1s ease-in-out infinite;
+}
