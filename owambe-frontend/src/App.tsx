@@ -63,7 +63,7 @@ function LandingPage() {
         <div className={`flex items-center gap-3 mb-8 transition-all duration-1000 ${visible ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-4"}`}>
           <div className="w-12 h-px bg-linear-to-r from-transparent to-gold/60" />
           <div className="w-2 h-2 rotate-45 border border-gold/40" />
-          <span className="text-gold/40 text-xs font-arena tracking-[0.4em]">BUILT ON MONAD</span>
+          <span className="text-gold/40 text-xs font-arena tracking-[0.4em]">BUILT ON BASE</span>
           <div className="w-2 h-2 rotate-45 border border-gold/40" />
           <div className="w-12 h-px bg-linear-to-l from-transparent to-gold/60" />
         </div>
@@ -136,7 +136,7 @@ function LandingPage() {
               <span className="text-gold font-arena text-sm tracking-wider">I. CREATE</span>
             </div>
             <p className="text-white text-sm leading-relaxed">
-              Speak your topic or type it. AI forges the questions. Fund the prize pool in MON — it's locked in escrow the moment you create.
+              Speak your topic or type it. AI forges the questions. Fund the prize pool in ETH, USDC, or USDT — it's locked in escrow the moment you create.
             </p>
           </div>
 
@@ -164,7 +164,7 @@ function LandingPage() {
               <span className="text-gold font-arena text-sm tracking-wider">III. VICTORY</span>
             </div>
             <p className="text-white text-sm leading-relaxed">
-              Winners connect a wallet and get paid instantly on Monad. The smart contract releases the funds. No middleman. No delay. No ghosting.
+              Winners connect a wallet and get paid instantly on Base. The smart contract releases the funds. No middleman. No delay. No ghosting.
             </p>
           </div>
         </div>
@@ -222,7 +222,7 @@ function LandingPage() {
         <div className="text-center mb-12">
           <p className="text-white/50 text-xs font-arena tracking-[0.4em] mb-6">POWERED BY</p>
           <div className="flex flex-wrap justify-center gap-3">
-            {["MONAD", "SOLIDITY", "REACT", "GROQ AI", "ETHERS.JS"].map((tech) => (
+            {["BASE", "SOLIDITY", "REACT", "GROQ AI", "ETHERS.JS"].map((tech) => (
               <span key={tech} className="px-4 py-2 rounded-lg border border-arena-border text-white/60 text-xs font-arena tracking-wider hover:border-gold/20 hover:text-white transition-all">
                 {tech}
               </span>

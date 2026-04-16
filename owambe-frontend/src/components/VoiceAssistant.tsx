@@ -143,7 +143,7 @@ export function VoiceAssistant({ onConfigParsed }: VoiceAssistantProps) {
           <p className="text-cream-dim/60 text-sm text-center max-w-xs">
             Tap the mic and describe your game.<br />
             <span className="text-gold/60 text-xs italic">
-              "Create a trivia about Afrobeats music, 0.5 MON prize pool, 3 questions, split 60-30-10"
+              "Create a trivia about Afrobeats music, 0.5 ETH prize pool, 3 questions, split 60-30-10"
             </span>
           </p>
         )}
@@ -196,7 +196,7 @@ function fallbackParse(text: string): ParsedGameConfig {
 
   // Try to find prize pool amount
   let prizePool = "0.05";
-  const monMatch = lower.match(/([\d.]+)\s*mon/);
+  const monMatch = lower.match(/([\d.]+)\s*(?:eth|mon|usdc|usdt)/);
   if (monMatch) prizePool = monMatch[1];
 
   // Question count
@@ -216,7 +216,7 @@ function fallbackParse(text: string): ParsedGameConfig {
 
   // Clean topic — remove money/config phrases
   topic = topic
-    .replace(/[\d.]+\s*mon\s*(prize\s*pool)?/gi, "")
+    .replace(/[\d.]+\s*(?:eth|mon|usdc|usdt)\s*(prize\s*pool)?/gi, "")
     .replace(/\d+\s*questions?/gi, "")
     .replace(/split\s*[\d\s/-]+/gi, "")
     .replace(/prize\s*pool/gi, "")

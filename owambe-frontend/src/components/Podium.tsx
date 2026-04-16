@@ -47,7 +47,7 @@ export function Podium({ entries }: PodiumProps) {
                 {entry.score} pts
               </p>
               {entry.winnings && (
-                <p className="text-gold text-xs font-bold">+{entry.winnings} MON</p>
+                <p className="text-gold text-xs font-bold">+{entry.winnings}</p>
               )}
             </div>
 

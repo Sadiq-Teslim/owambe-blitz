@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { Contract, JsonRpcSigner, ethers } from "ethers";
-import { CONTRACT_ADDRESS, OWA_GAME_ABI } from "../utils/contract";
+import { CONTRACT_ADDRESS, OWA_GAME_ABI, ERC20_ABI, TOKEN_ADDRESSES } from "../utils/contract";
 
 export function useContract(signer: JsonRpcSigner | null) {
   const getContract = useCallback(() => {
@@ -9,32 +9,40 @@ export function useContract(signer: JsonRpcSigner | null) {
   }, [signer]);
 
   const createGame = useCallback(
-    async (prizePool: string, sharePercentages: number[]) => {
+    async (prizePool: string, sharePercentages: number[], tokenSymbol: string = "ETH") => {
       const contract = getContract();
-      if (!contract) throw new Error("Contract not available. Check wallet and contract address.");
+      if (!contract || !signer) throw new Error("Contract not available. Check wallet and contract address.");
 
-      const prizePoolWei = ethers.parseEther(prizePool);
-      const tx = await contract.createGame(sharePercentages, { value: prizePoolWei });
-      const receipt = await tx.wait();
+      const tokenAddress = TOKEN_ADDRESSES[tokenSymbol] || TOKEN_ADDRESSES.ETH;
+      const isETH = tokenAddress === TOKEN_ADDRESSES.ETH;
 
-      const event = receipt.logs.find((log: any) => {
-        try {
-          const parsed = contract.interface.parseLog({ topics: log.topics as string[], data: log.data });
-          return parsed?.name === "GameCreated";
-        } catch {
-          return false;
+      let amount: bigint;
+
+      if (isETH) {
+        // ETH: 18 decimals
+        amount = ethers.parseEther(prizePool);
+        const tx = await contract.createGame(sharePercentages, tokenAddress, 0, { value: amount });
+        const receipt = await tx.wait();
+        return parseGameCreated(contract, receipt);
+      } else {
+        // ERC-20: get decimals, approve, then create
+        const tokenContract = new Contract(tokenAddress, ERC20_ABI, signer);
+        const decimals = await tokenContract.decimals();
+        amount = ethers.parseUnits(prizePool, decimals);
+
+        // Check allowance and approve if needed
+        const currentAllowance = await tokenContract.allowance(await signer.getAddress(), CONTRACT_ADDRESS);
+        if (currentAllowance < amount) {
+          const approveTx = await tokenContract.approve(CONTRACT_ADDRESS, amount);
+          await approveTx.wait();
         }
-      });
 
-      if (event) {
-        const parsed = contract.interface.parseLog({ topics: event.topics as string[], data: event.data });
-        return { gameId: Number(parsed!.args.gameId), txHash: receipt.hash };
+        const tx = await contract.createGame(sharePercentages, tokenAddress, amount);
+        const receipt = await tx.wait();
+        return parseGameCreated(contract, receipt);
       }
-
-      const gameCount = await contract.gameCount();
-      return { gameId: Number(gameCount), txHash: receipt.hash };
     },
-    [getContract]
+    [getContract, signer]
   );
 
   const payoutWinners = useCallback(
@@ -67,4 +75,22 @@ export function useContract(signer: JsonRpcSigner | null) {
   );
 
   return { createGame, payoutWinners };
+}
+
+function parseGameCreated(contract: Contract, receipt: any) {
+  const event = receipt.logs.find((log: any) => {
+    try {
+      const parsed = contract.interface.parseLog({ topics: log.topics as string[], data: log.data });
+      return parsed?.name === "GameCreated";
+    } catch {
+      return false;
+    }
+  });
+
+  if (event) {
+    const parsed = contract.interface.parseLog({ topics: event.topics as string[], data: event.data });
+    return { gameId: Number(parsed!.args.gameId), txHash: receipt.hash };
+  }
+
+  return { gameId: 0, txHash: receipt.hash };
 }

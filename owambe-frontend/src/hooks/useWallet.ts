@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { BrowserProvider, JsonRpcSigner } from "ethers";
-import { MONAD_TESTNET } from "../utils/contract";
+import { BASE_SEPOLIA } from "../utils/contract";
 
 declare global {
   interface Window {
@@ -15,18 +15,18 @@ export function useWallet() {
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const switchToMonad = useCallback(async () => {
+  const switchToBase = useCallback(async () => {
     if (!window.ethereum) return;
     try {
       await window.ethereum.request({
         method: "wallet_switchEthereumChain",
-        params: [{ chainId: MONAD_TESTNET.chainId }],
+        params: [{ chainId: BASE_SEPOLIA.chainId }],
       });
     } catch (switchError: any) {
       if (switchError.code === 4902) {
         await window.ethereum.request({
           method: "wallet_addEthereumChain",
-          params: [MONAD_TESTNET],
+          params: [BASE_SEPOLIA],
         });
       } else {
         throw switchError;
@@ -44,7 +44,7 @@ export function useWallet() {
     setError(null);
 
     try {
-      await switchToMonad();
+      await switchToBase();
 
       const browserProvider = new BrowserProvider(window.ethereum);
       const accounts = await browserProvider.send("eth_requestAccounts", []);
@@ -58,7 +58,7 @@ export function useWallet() {
     } finally {
       setConnecting(false);
     }
-  }, [switchToMonad]);
+  }, [switchToBase]);
 
   const disconnect = useCallback(() => {
     setAddress(null);

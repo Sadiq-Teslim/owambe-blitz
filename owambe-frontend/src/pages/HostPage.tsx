@@ -9,6 +9,7 @@ import { TimerRing } from "../components/TimerRing";
 import { Podium } from "../components/Podium";
 import { Confetti } from "../components/Confetti";
 import { api } from "../utils/api";
+import { TOKEN_ADDRESSES } from "../utils/contract";
 
 type GamePhase = "setup" | "lobby" | "playing" | "results";
 
@@ -37,6 +38,7 @@ interface HostSavedState {
   splitType: "default" | "custom";
   customSplits: string;
   questionCount: number;
+  tokenSymbol: string;
   leaderboard: LeaderboardEntry[];
   payoutTxHash: string | null;
   // payouts stored as string amounts (bigint not JSON-serializable)
@@ -74,6 +76,7 @@ export function HostPage() {
   const [inputMode, setInputMode] = useState<"voice" | "manual">("voice");
   const [questionMode, setQuestionMode] = useState<"ai" | "custom">("ai");
   const [customQuestions, setCustomQuestions] = useState<CustomQuestion[]>([]);
+  const [tokenSymbol, setTokenSymbol] = useState(saved.tokenSymbol || "ETH");
 
   // Game state
   const [phase, setPhase] = useState<GamePhase>(saved.phase || "setup");
@@ -108,10 +111,10 @@ export function HostPage() {
     if (phase === "setup" && !gameId) return; // Don't save empty setup
     saveHostState({
       phase, gameId, questions, topic, prizePool, splitType, customSplits,
-      questionCount, leaderboard, payoutTxHash,
+      questionCount, tokenSymbol, leaderboard, payoutTxHash,
       payoutsSerialized: payouts.map((p) => ({ ...p, amount: p.amount.toString() })),
     });
-  }, [phase, gameId, questions, topic, prizePool, splitType, customSplits, questionCount, leaderboard, payoutTxHash, payouts]);
+  }, [phase, gameId, questions, topic, prizePool, splitType, customSplits, questionCount, tokenSymbol, leaderboard, payoutTxHash, payouts]);
 
   // Poll game state — auto-advance is server-side, we just read it
   useEffect(() => {
@@ -237,7 +240,7 @@ export function HostPage() {
     setError(null);
     setCreating(true);
     try {
-      const chainResult = await contract.createGame(prizePool, sharePercentages);
+      const chainResult = await contract.createGame(prizePool, sharePercentages, tokenSymbol);
       const backendResult = await api.createGame({
         gameId: String(chainResult.gameId),
         host: wallet.address!,
@@ -296,7 +299,7 @@ export function HostPage() {
   const handleShare = async () => {
     if (!joinUrl) return;
     if (navigator.share) {
-      await navigator.share({ title: "Join my OWAMBE trivia!", text: `Join the arena! Prize pool: ${prizePool} MON`, url: joinUrl });
+      await navigator.share({ title: "Join my OWAMBE trivia!", text: `Join the arena! Prize pool: ${prizePool} ${tokenSymbol}`, url: joinUrl });
     } else {
       await navigator.clipboard.writeText(joinUrl);
       alert("Link copied!");
@@ -378,15 +381,35 @@ export function HostPage() {
                 />
               </div>
 
+              {/* Token Selection */}
+              <div>
+                <label className="block text-white text-xs font-arena tracking-wider mb-2">CURRENCY</label>
+                <div className="flex gap-2">
+                  {Object.keys(TOKEN_ADDRESSES).map((sym) => (
+                    <button
+                      key={sym}
+                      onClick={() => setTokenSymbol(sym)}
+                      className={`flex-1 py-2 rounded-lg text-xs font-arena tracking-wider transition-all cursor-pointer ${
+                        tokenSymbol === sym
+                          ? "bg-gold/15 text-gold border border-gold/40"
+                          : "bg-arena-stone border border-arena-border text-white/70"
+                      }`}
+                    >
+                      {sym}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Prize Pool */}
               <div>
-                <label className="block text-white text-xs font-arena tracking-wider mb-2">PRIZE POOL (MON)</label>
+                <label className="block text-white text-xs font-arena tracking-wider mb-2">PRIZE POOL ({tokenSymbol})</label>
                 <input
                   type="number"
                   value={prizePool}
                   onChange={(e) => setPrizePool(e.target.value)}
-                  step="0.01"
-                  min="0.01"
+                  step={tokenSymbol === "ETH" ? "0.001" : "1"}
+                  min={tokenSymbol === "ETH" ? "0.001" : "1"}
                   className="w-full bg-arena-stone border border-arena-border rounded-lg px-4 py-3 text-gold font-bold focus:outline-none focus:border-gold/50 transition-colors"
                 />
               </div>
@@ -565,7 +588,7 @@ export function HostPage() {
           <div className="stone-card p-4 flex justify-around text-center">
             <div>
               <p className="text-white/70 text-xs font-arena tracking-wider">PRIZE</p>
-              <p className="text-gold font-bold text-lg">{prizePool} MON</p>
+              <p className="text-gold font-bold text-lg">{prizePool} {tokenSymbol}</p>
             </div>
             <div className="w-px bg-arena-border" />
             <div>
@@ -692,7 +715,7 @@ export function HostPage() {
           {paying && (
             <div className="stone-card arena-border p-6 text-center">
               <div className="animate-spin w-10 h-10 border-3 border-gold border-t-transparent rounded-full mx-auto mb-4" />
-              <p className="text-white/80 text-sm font-arena tracking-wider">SETTLING ON MONAD...</p>
+              <p className="text-white/80 text-sm font-arena tracking-wider">SETTLING ON BASE...</p>
             </div>
           )}
 
@@ -706,9 +729,9 @@ export function HostPage() {
 
           {payoutTxHash && (
             <div className="stone-card arena-border p-6 text-center">
-              <p className="text-arena-green font-arena text-sm tracking-wider mb-2">PAID ON MONAD — INSTANTLY</p>
+              <p className="text-arena-green font-arena text-sm tracking-wider mb-2">PAID ON BASE — INSTANTLY</p>
               <a
-                href={`https://testnet.monadexplorer.com/tx/${payoutTxHash}`}
+                href={`https://sepolia.basescan.org/tx/${payoutTxHash}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-white/70 hover:text-gold text-xs font-mono break-all underline transition-colors"

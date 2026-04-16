@@ -259,7 +259,7 @@ export function PlayerPage() {
             <div className="stone-card arena-border arch-top p-6">
               <div className="text-center mb-6">
                 <p className="text-white/70 text-xs font-arena tracking-widest mb-1">PRIZE POOL</p>
-                <p className="text-gold font-bold text-4xl font-arena">{gameData.prizePool} <span className="text-lg">MON</span></p>
+                <p className="text-gold font-bold text-4xl font-arena">{gameData.prizePool} <span className="text-lg">{gameData.token || "ETH"}</span></p>
               </div>
 
               <div className="grid grid-cols-3 gap-4 text-center border-t border-arena-border pt-4">
@@ -477,7 +477,7 @@ export function PlayerPage() {
               {claimed && payoutReceived && (
                 <div className="stone-card arena-border p-6 text-center bg-arena-green/5">
                   <p className="font-arena text-arena-green text-lg tracking-wider">WINNINGS SENT</p>
-                  <p className="text-white/80 text-sm mt-1">Check your wallet — your MON has arrived</p>
+                  <p className="text-white/80 text-sm mt-1">Check your wallet — your winnings have arrived</p>
                   <p className="text-white/60 text-xs font-mono mt-2">{claimedAddress}</p>
                 </div>
               )}

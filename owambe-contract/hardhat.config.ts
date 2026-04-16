@@ -19,6 +19,16 @@ const config: HardhatUserConfig = {
   },
   networks: {
     ...(hasValidKey ? {
+      base: {
+        url: "https://mainnet.base.org",
+        chainId: 8453,
+        accounts: [DEPLOYER_PRIVATE_KEY!],
+      },
+      "base-sepolia": {
+        url: "https://sepolia.base.org",
+        chainId: 84532,
+        accounts: [DEPLOYER_PRIVATE_KEY!],
+      },
       monad: {
         url: "https://testnet-rpc.monad.xyz",
         chainId: 10143,
