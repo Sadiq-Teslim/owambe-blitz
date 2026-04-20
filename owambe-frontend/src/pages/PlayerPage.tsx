@@ -422,8 +422,15 @@ export function PlayerPage() {
                     <input
                       type="text"
                       value={manualWallet}
-                      onChange={(e) => setManualWallet(e.target.value)}
-                      placeholder="0x..."
+                      onChange={(e) => setManualWallet(e.target.value.trim())}
+                      onPaste={(e) => {
+                        e.preventDefault();
+                        const paste = (e.clipboardData as any)?.getData("text") || "";
+                        setManualWallet(paste.trim());
+                      }}
+                      placeholder="Paste or type 0x address"
+                      spellCheck="false"
+                      autoComplete="off"
                       className="w-full bg-arena-stone border border-arena-border rounded-lg px-4 py-3 text-cream font-mono text-sm placeholder-cream/20 focus:outline-none focus:border-gold/50 transition-colors"
                     />
                   </div>

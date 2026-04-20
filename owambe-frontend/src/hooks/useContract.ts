@@ -25,9 +25,17 @@ export function useContract(signer: JsonRpcSigner | null) {
         const receipt = await tx.wait();
         return parseGameCreated(contract, receipt);
       } else {
-        // ERC-20: get decimals, approve, then create
+        // ERC-20: get decimals with fallback to 6 (USDC/USDT on Base use 6 decimals)
         const tokenContract = new Contract(tokenAddress, ERC20_ABI, signer);
-        const decimals = await tokenContract.decimals();
+        let decimals = 6; // Default for USDC/USDT on Base Sepolia
+
+        try {
+          decimals = await tokenContract.decimals();
+        } catch (err) {
+          console.warn(`Could not fetch decimals for ${tokenSymbol}, using default 6`, err);
+          // Use default 6 decimals for USDC/USDT
+        }
+
         amount = ethers.parseUnits(prizePool, decimals);
 
         // Check allowance and approve if needed

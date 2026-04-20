@@ -36,7 +36,7 @@ export function useWallet() {
 
   const connect = useCallback(async () => {
     if (!window.ethereum) {
-      setError("Please install MetaMask or Rabby wallet");
+      setError("Please install MetaMask, Phantom, or Rabby wallet");
       return;
     }
 

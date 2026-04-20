@@ -207,10 +207,13 @@ export function HostPage() {
     }
   };
 
-  const handleVoiceConfig = (config: { topic: string; prizePool: string; questionCount: number; sharePercentages: number[] }) => {
+  const handleVoiceConfig = (config: { topic: string; prizePool: string; questionCount: number; sharePercentages: number[]; tokenSymbol?: string }) => {
     setTopic(config.topic);
     setPrizePool(config.prizePool);
     setQuestionCount(config.questionCount);
+    if (config.tokenSymbol && Object.keys(TOKEN_ADDRESSES).includes(config.tokenSymbol)) {
+      setTokenSymbol(config.tokenSymbol);
+    }
     if (JSON.stringify(config.sharePercentages) !== JSON.stringify([60, 30, 10])) {
       setSplitType("custom");
       setCustomSplits(config.sharePercentages.join(","));

@@ -6,6 +6,7 @@ interface ParsedGameConfig {
   prizePool: string;
   questionCount: number;
   sharePercentages: number[];
+  tokenSymbol?: string; // ETH, USDC, USDT
 }
 
 interface VoiceAssistantProps {
@@ -153,6 +154,12 @@ export function VoiceAssistant({ onConfigParsed }: VoiceAssistantProps) {
             LISTENING... TAP TO FINISH
           </p>
         )}
+
+        {parsing && (
+          <p className="text-gold text-sm font-arena tracking-wider animate-pulse">
+            ANALYZING YOUR VOICE...
+          </p>
+        )}
       </div>
 
       {/* Transcript display */}
@@ -194,15 +201,21 @@ function fallbackParse(text: string): ParsedGameConfig {
   // Extract topic — everything that isn't about numbers/money/splits
   let topic = text;
 
+  // Try to find token symbol first (eth, usdt, usdc)
+  let tokenSymbol = "ETH"; // default
+  const tokenMatch = lower.match(/\b(eth|usdt|usdc)\b/i);
+  if (tokenMatch) tokenSymbol = tokenMatch[1].toUpperCase();
+
   // Try to find prize pool amount
   let prizePool = "0.05";
-  const monMatch = lower.match(/([\d.]+)\s*(?:eth|mon|usdc|usdt)/);
-  if (monMatch) prizePool = monMatch[1];
+  // Match number + optional decimal + optional currency
+  const poolMatch = lower.match(/([\d.]+)\s*(?:eth|mon|usdc|usdt)?/);
+  if (poolMatch) prizePool = poolMatch[1];
 
   // Question count
   let questionCount = 3;
-  const qMatch = lower.match(/(\d+)\s*question/);
-  if (qMatch) questionCount = Math.min(parseInt(qMatch[1]), 10);
+  const qMatch = lower.match(/(\d+)\s*(?:question|round)/);
+  if (qMatch) questionCount = Math.min(parseInt(qMatch[1]), 20);
 
   // Share percentages
   let sharePercentages = [60, 30, 10];
@@ -216,8 +229,9 @@ function fallbackParse(text: string): ParsedGameConfig {
 
   // Clean topic — remove money/config phrases
   topic = topic
-    .replace(/[\d.]+\s*(?:eth|mon|usdc|usdt)\s*(prize\s*pool)?/gi, "")
-    .replace(/\d+\s*questions?/gi, "")
+    .replace(/\b(?:eth|mon|usdc|usdt)\b/gi, "")
+    .replace(/[\d.]+\s*(?:eth|mon|usdc|usdt)?\s*(?:eth|mon|usdc|usdt)?\s*(prize\s*pool)?/gi, "")
+    .replace(/\d+\s*(?:question|round)s?/gi, "")
     .replace(/split\s*[\d\s/-]+/gi, "")
     .replace(/prize\s*pool/gi, "")
     .replace(/create\s*(a\s*)?trivia\s*(about|on)?/gi, "")
@@ -226,5 +240,5 @@ function fallbackParse(text: string): ParsedGameConfig {
 
   if (!topic) topic = "General Knowledge";
 
-  return { topic, prizePool, questionCount, sharePercentages };
+  return { topic, prizePool, questionCount, sharePercentages, tokenSymbol };
 }
